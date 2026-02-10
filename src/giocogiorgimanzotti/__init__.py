@@ -1,953 +1,1153 @@
 import pygame
 import math
 import random
-from enum import Enum
 
-# Costanti
-WIDTH, HEIGHT = 1400, 800
-FPS = 60
+# ==============================================================================
+# COSTANTI DEL GIOCO - Valori che non cambiano mai
+# ==============================================================================
 
-# Colori
-COLORS = {
-    'RED': (255, 0, 0),
-    'WHITE': (255, 255, 255),
-    'YELLOW': (255, 255, 0),
-    'BLUE': (0, 0, 255),
-    'ORANGE': (255, 165, 0),
-    'GREEN': (0, 255, 0)
+LARGHEZZA = 1400  # Larghezza finestra
+ALTEZZA = 800     # Altezza finestra
+FPS = 60          # Frame per secondo
+
+# Colori delle piattaforme (Rosso, Bianco, Giallo, Blu, Arancione, Verde)
+COLORI = {
+    'ROSSO': (255, 0, 0),
+    'BIANCO': (255, 255, 255),
+    'GIALLO': (255, 255, 0),
+    'BLU': (0, 0, 255),
+    'ARANCIONE': (255, 165, 0),
+    'VERDE': (0, 255, 0)
 }
 
-COLOR_NAMES = list(COLORS.keys())
+NOMI_COLORI = ['ROSSO', 'BIANCO', 'GIALLO', 'BLU', 'ARANCIONE', 'VERDE']
 
 
-class Difficulty(Enum):
-    EASY = 1
-    MEDIUM = 2
-    HARD = 3
+# ==============================================================================
+# VARIABILI GLOBALI - Lo stato del gioco
+# ==============================================================================
+
+# Stato del gioco: "MENU", "GIOCANDO", "ATTESA", "VINCITORE"
+stato_gioco = "MENU"
+
+# Difficoltà: "FACILE", "MEDIO", "DIFFICILE"
+difficolta = "FACILE"
+
+# Liste che contengono piattaforme e giocatori
+piattaforme = []     # Lista di dizionari, ogni piattaforma è un dizionario
+lottatori = []       # Lista di dizionari, ogni giocatore è un dizionario
+
+# Colore target del round corrente
+colore_target = None
+
+# Tempo prima che le piattaforme scompaiano
+conto_alla_rovescia = 3.5
+
+# Numero del round corrente
+numero_round = 1
+
+# Vincitore (dizionario del giocatore che ha vinto)
+vincitore = None
+
+# Flag per sapere se le piattaforme sono già scomparse
+piattaforme_scomparse = False
 
 
-class GameState(Enum):
-    MENU = 1
-    PLAYING = 2
-    WAITING = 3
-    WINNER = 4
+# ==============================================================================
+# FUNZIONI PER LE PIATTAFORME
+# ==============================================================================
+
+def crea_piattaforma(x, y, larghezza, altezza, nome_colore):
+    """
+    Crea una piattaforma colorata.
+    Restituisce un dizionario con tutte le informazioni della piattaforma.
+    """
+    return {
+        'x': x,
+        'y': y,
+        'larghezza': larghezza,
+        'altezza': altezza,
+        'nome_colore': nome_colore,
+        'colore': COLORI[nome_colore],
+        'attiva': True,  # Se la piattaforma è visibile/utilizzabile
+        'progresso_scomparsa': 0  # 0 = visibile, 1 = completamente scomparsa
+    }
 
 
-class Platform:
-    """Classe per una piattaforma colorata"""
+def piattaforma_inizia_scomparsa(piattaforma):
+    """Fa iniziare l'animazione di scomparsa di una piattaforma"""
+    piattaforma['attiva'] = False
+
+
+def piattaforma_aggiorna(piattaforma):
+    """Aggiorna l'animazione di scomparsa di una piattaforma"""
+    if not piattaforma['attiva'] and piattaforma['progresso_scomparsa'] < 1:
+        piattaforma['progresso_scomparsa'] += 0.05
+
+
+def piattaforma_disegna(schermo, piattaforma):
+    """Disegna una piattaforma sullo schermo"""
+    if piattaforma['progresso_scomparsa'] >= 1:
+        return  # Non disegnare se completamente scomparsa
     
-    def __init__(self, x, y, width, height, color_name):
-        self.x = x
-        self.y = y
-        self.width = width
-        self.height = height
-        self.color_name = color_name
-        self.color = COLORS[color_name]
-        self.active = True
-        self.disappear_progress = 0
+    if not piattaforma['attiva']:
+        # Animazione di scomparsa: la piattaforma diventa più piccola
+        scala = 1 - piattaforma['progresso_scomparsa']
+        offset = piattaforma['progresso_scomparsa'] * 20
         
-    def start_disappear(self):
-        """Inizia l'animazione di scomparsa"""
-        self.active = False
+        rett = pygame.Rect(
+            piattaforma['x'] + offset,
+            piattaforma['y'] + offset,
+            piattaforma['larghezza'] * scala,
+            piattaforma['altezza'] * scala
+        )
+    else:
+        # Piattaforma normale
+        rett = pygame.Rect(piattaforma['x'], piattaforma['y'], 
+                          piattaforma['larghezza'], piattaforma['altezza'])
     
-    def update(self):
-        """Aggiorna l'animazione"""
-        if not self.active and self.disappear_progress < 1:
-            self.disappear_progress += 0.05
+    # Disegna il rettangolo colorato
+    pygame.draw.rect(schermo, piattaforma['colore'], rett)
+    # Disegna il bordo nero
+    pygame.draw.rect(schermo, (0, 0, 0), rett, 4)
+
+
+def piattaforma_contiene_punto(piattaforma, x, y, margine=15):
+    """
+    Controlla se un punto (x, y) è dentro o vicino alla piattaforma.
+    Il margine permette di camminare tra piattaforme adiacenti senza cadere.
+    """
+    if not piattaforma['attiva'] or piattaforma['progresso_scomparsa'] >= 1:
+        return False
     
-    def draw(self, screen):
-        """Disegna la piattaforma"""
-        if self.disappear_progress >= 1:
-            return
-        
-        if not self.active:
-            scale = 1 - self.disappear_progress
-            offset = self.disappear_progress * 20
+    # Espandi l'area di controllo con il margine
+    return (piattaforma['x'] - margine <= x <= piattaforma['x'] + piattaforma['larghezza'] + margine and 
+            piattaforma['y'] - margine <= y <= piattaforma['y'] + piattaforma['altezza'] + margine)
+
+
+def piattaforma_ottieni_centro(piattaforma):
+    """Restituisce il centro della piattaforma come tupla (x, y)"""
+    centro_x = piattaforma['x'] + piattaforma['larghezza'] // 2
+    centro_y = piattaforma['y'] + piattaforma['altezza'] // 2
+    return (centro_x, centro_y)
+
+
+def crea_tutte_piattaforme():
+    """
+    Crea tutte le piattaforme del gioco.
+    Restituisce una lista di piattaforme (dizionari).
+    """
+    lista_piattaforme = []
+    
+    # Configurazione griglia
+    righe = 6
+    colonne = 5
+    larghezza_piattaforma = 140
+    altezza_piattaforma = 110
+    spaziatura = 10  # Spazio tra piattaforme (camminabile con il margine)
+    
+    # Calcola dove posizionare la griglia per centrarla
+    larghezza_griglia = colonne * larghezza_piattaforma + (colonne - 1) * spaziatura
+    altezza_griglia = righe * altezza_piattaforma + (righe - 1) * spaziatura
+    offset_x = (LARGHEZZA - larghezza_griglia) // 2
+    offset_y = (ALTEZZA - altezza_griglia) // 2 + 30
+    
+    # Crea lista di colori: esattamente 5 di ogni colore
+    lista_colori = []
+    for nome_colore in NOMI_COLORI:
+        lista_colori.extend([nome_colore] * 5)  # Aggiunge 5 volte ogni colore
+    
+    # Mescola i colori casualmente
+    random.shuffle(lista_colori)
+    
+    # Crea le piattaforme
+    idx = 0
+    for riga in range(righe):
+        for col in range(colonne):
+            x = offset_x + col * (larghezza_piattaforma + spaziatura)
+            y = offset_y + riga * (altezza_piattaforma + spaziatura)
             
-            rect = pygame.Rect(
-                self.x + offset,
-                self.y + offset,
-                self.width * scale,
-                self.height * scale
-            )
-        else:
-            rect = pygame.Rect(self.x, self.y, self.width, self.height)
-        
-        pygame.draw.rect(screen, self.color, rect)
-        pygame.draw.rect(screen, (0, 0, 0), rect, 3)
+            nome_colore = lista_colori[idx]
+            piattaforma = crea_piattaforma(x, y, larghezza_piattaforma, altezza_piattaforma, nome_colore)
+            lista_piattaforme.append(piattaforma)
+            idx += 1
     
-    def contains_point(self, x, y):
-        """Controlla se un punto è dentro la piattaforma"""
-        if not self.active or self.disappear_progress >= 1:
-            return False
-        
-        return (self.x <= x <= self.x + self.width and 
-                self.y <= y <= self.y + self.height)
-    
-    def get_center(self):
-        """Restituisce il centro della piattaforma"""
-        return (self.x + self.width // 2, self.y + self.height // 2)
+    return lista_piattaforme
 
 
-class SumoWrestler:
-    """Classe per un personaggio lottatore di sumo"""
-    
-    def __init__(self, x, y, body_color, name, is_bot=False, difficulty=Difficulty.EASY):
+# ==============================================================================
+# FUNZIONI PER I GIOCATORI (LOTTATORI SUMO)
+# ==============================================================================
+
+def crea_lottatore(x, y, colore_corpo, nome, è_bot, difficolta):
+    """
+    Crea un giocatore lottatore di sumo.
+    Restituisce un dizionario con tutte le informazioni del giocatore.
+    """
+    return {
         # Posizione
-        self.x = x
-        self.y = y
-        self.spawn_x = x
-        self.spawn_y = y
+        'x': x,
+        'y': y,
+        'spawn_x': x,  # Posizione iniziale dove riappare
+        'spawn_y': y,
         
-        # Fisica
-        self.velocity_x = 0
-        self.velocity_y = 0
-        self.acceleration = 0.6
-        self.max_speed = 4.0
-        self.friction = 0.85
-        
-        # Dimensioni
-        self.radius = 22
-        self.head_radius = 13
+        # Movimento
+        'velocita_x': 0,
+        'velocita_y': 0,
         
         # Aspetto
-        self.body_color = body_color
-        self.skin_color = (255, 220, 177)
-        self.belt_color = (50, 50, 50)
+        'colore_corpo': colore_corpo,
+        'nome': nome,
+        'è_bot': è_bot,
+        'vivo': True,
         
-        # Info
-        self.name = name
-        self.is_bot = is_bot
-        self.alive = True
-        self.difficulty = difficulty
+        # Attacco
+        'attaccando': False,
+        'cooldown_attacco': 0,  # Tempo prima di poter attaccare di nuovo
+        'durata_attacco': 0,    # Durata dell'animazione di attacco
         
-        # Attacco - SPINTA PIÙ FORTE (80 pixel = circa 70% di una piattaforma)
-        self.attacking = False
-        self.attack_cooldown = 0
-        self.attack_range = 50
-        self.attack_duration = 0
-        self.attack_knockback = 80  # Aumentato da 55 a 80 per spinta più forte
-        
-        # AI per i bot
-        self.target_platform = None
-        self.ai_timer = 0
-        self.ai_reaction_time = self.get_ai_reaction_time()
-        self.ai_decision_quality = self.get_ai_decision_quality()
-        self.ai_attack_chance = self.get_ai_attack_chance()
-        
-    def get_ai_reaction_time(self):
-        """Ottiene il tempo di reazione dell'AI basato sulla difficoltà"""
-        if self.difficulty == Difficulty.EASY:
-            return random.randint(80, 120)
-        elif self.difficulty == Difficulty.MEDIUM:
-            return random.randint(40, 70)
-        else:  # HARD
-            return random.randint(10, 30)
+        # AI (per i bot)
+        'difficolta': difficolta,
+        'piattaforma_target': None,  # Piattaforma verso cui il bot si sta muovendo
+        'timer_ai': 0,
+        'tempo_reazione_ai': ottieni_tempo_reazione_ai(difficolta),
+        'qualita_decisioni_ai': ottieni_qualita_decisioni_ai(difficolta),
+        'probabilita_attacco_ai': ottieni_probabilita_attacco_ai(difficolta)
+    }
+
+
+def ottieni_tempo_reazione_ai(difficolta):
+    """Quanto velocemente il bot reagisce (in frame) - BOT PIÙ FORTI"""
+    if difficolta == "FACILE":
+        return random.randint(50, 80)   # Da 80-120 a 50-80 (più veloci)
+    elif difficolta == "MEDIO":
+        return random.randint(20, 40)   # Da 40-70 a 20-40 (più veloci)
+    else:  # DIFFICILE
+        return random.randint(5, 15)    # Da 10-30 a 5-15 (molto più veloci)
+
+
+def ottieni_qualita_decisioni_ai(difficolta):
+    """Quanto bene il bot sceglie le piattaforme (0-1) - BOT PIÙ INTELLIGENTI"""
+    if difficolta == "FACILE":
+        return 0.6   # Da 0.3 a 0.6 (60% scelte ottime)
+    elif difficolta == "MEDIO":
+        return 0.85  # Da 0.7 a 0.85 (85% scelte ottime)
+    else:  # DIFFICILE
+        return 0.98  # Da 0.95 a 0.98 (98% scelte ottime)
+
+
+def ottieni_probabilita_attacco_ai(difficolta):
+    """Quanto spesso il bot attacca quando vicino a un nemico"""
+    if difficolta == "FACILE":
+        return 0.015  # Da 0.01 a 0.015 (più aggressivi)
+    elif difficolta == "MEDIO":
+        return 0.04   # Da 0.03 a 0.04 (più aggressivi)
+    else:  # DIFFICILE
+        return 0.10   # Da 0.08 a 0.10 (molto aggressivi)
+
+
+def lottatore_aggiorna(lottatore, tasti, pulsanti_mouse, lista_piattaforme, nome_colore_target, tutti_lottatori):
+    """Aggiorna un giocatore (movimento, attacco, ecc.)"""
     
-    def get_ai_decision_quality(self):
-        """Percentuale di decisioni ottimali (0-1)"""
-        if self.difficulty == Difficulty.EASY:
-            return 0.3
-        elif self.difficulty == Difficulty.MEDIUM:
-            return 0.7
-        else:  # HARD
-            return 0.95
+    if not lottatore['vivo']:
+        # Se morto, cade verso il basso (sempre, senza sparire improvvisamente)
+        lottatore['y'] += 5
+        return
     
-    def get_ai_attack_chance(self):
-        """Probabilità di attacco per frame quando vicino a un nemico"""
-        if self.difficulty == Difficulty.EASY:
-            return 0.01
-        elif self.difficulty == Difficulty.MEDIUM:
-            return 0.03
-        else:  # HARD
-            return 0.08
+    # Aggiorna cooldown attacco
+    if lottatore['cooldown_attacco'] > 0:
+        lottatore['cooldown_attacco'] -= 1
     
-    def update(self, keys=None, mouse_buttons=None, platforms=None, target_color=None, other_wrestlers=None):
-        """Aggiorna lo stato del lottatore"""
-        if not self.alive:
-            self.y += 5
-            return
-        
-        # Aggiorna cooldown attacco
-        if self.attack_cooldown > 0:
-            self.attack_cooldown -= 1
-        
-        # Aggiorna durata attacco
-        if self.attack_duration > 0:
-            self.attack_duration -= 1
-            if self.attack_duration == 0:
-                self.attacking = False
-        
-        # Controlli
-        if self.is_bot:
-            self.update_ai(platforms, target_color, other_wrestlers)
-        elif keys and mouse_buttons:
-            # Controlli umani (WASD)
-            if keys[pygame.K_a]:
-                self.velocity_x -= self.acceleration
-            if keys[pygame.K_d]:
-                self.velocity_x += self.acceleration
-            if keys[pygame.K_w]:
-                self.velocity_y -= self.acceleration
-            if keys[pygame.K_s]:
-                self.velocity_y += self.acceleration
+    # Aggiorna durata attacco
+    if lottatore['durata_attacco'] > 0:
+        lottatore['durata_attacco'] -= 1
+        if lottatore['durata_attacco'] == 0:
+            lottatore['attaccando'] = False
+    
+    # Controlli
+    if lottatore['è_bot']:
+        # Bot: usa intelligenza artificiale
+        lottatore_aggiorna_ai(lottatore, lista_piattaforme, nome_colore_target, tutti_lottatori)
+    else:
+        # Giocatore umano: usa tastiera e mouse
+        if tasti and pulsanti_mouse:
+            # Movimento WASD
+            if tasti[pygame.K_a]:
+                lottatore['velocita_x'] -= 0.6
+            if tasti[pygame.K_d]:
+                lottatore['velocita_x'] += 0.6
+            if tasti[pygame.K_w]:
+                lottatore['velocita_y'] -= 0.6
+            if tasti[pygame.K_s]:
+                lottatore['velocita_y'] += 0.6
             
             # Attacco con click sinistro
-            if mouse_buttons[0] and self.attack_cooldown == 0:
-                self.perform_attack(other_wrestlers)
-        
-        # Limita la velocità
-        speed = math.sqrt(self.velocity_x**2 + self.velocity_y**2)
-        if speed > self.max_speed:
-            ratio = self.max_speed / speed
-            self.velocity_x *= ratio
-            self.velocity_y *= ratio
-        
-        # Applica attrito
-        self.velocity_x *= self.friction
-        self.velocity_y *= self.friction
-        
-        # Aggiorna posizione
-        self.x += self.velocity_x
-        self.y += self.velocity_y
-        
-        # Limiti dello schermo
-        self.x = max(self.radius, min(WIDTH - self.radius, self.x))
-        self.y = max(self.radius, min(HEIGHT - self.radius, self.y))
+            if pulsanti_mouse[0] and lottatore['cooldown_attacco'] == 0:
+                lottatore_esegui_attacco(lottatore, tutti_lottatori)
     
-    def perform_attack(self, other_wrestlers):
-        """Esegue un attacco pancia in stile Kung Fu Panda"""
-        if not other_wrestlers:
-            return
-        
-        self.attacking = True
-        self.attack_duration = 15
-        self.attack_cooldown = 60
-        
-        # Controlla collisioni con altri lottatori
-        for other in other_wrestlers:
-            if other.alive and other != self:
-                dx = other.x - self.x
-                dy = other.y - self.y
-                distance = math.sqrt(dx**2 + dy**2)
-                
-                if distance < self.attack_range and distance > 0:
-                    # Calcola direzione del knockback (80 pixel = spinta più forte)
-                    knock_x = (dx / distance) * self.attack_knockback
-                    knock_y = (dy / distance) * self.attack_knockback
-                    
-                    # Applica knockback
-                    other.velocity_x += knock_x
-                    other.velocity_y += knock_y
+    # Limita la velocità massima
+    velocita = math.sqrt(lottatore['velocita_x']**2 + lottatore['velocita_y']**2)
+    velocita_massima = 4.0
+    if velocita > velocita_massima:
+        rapporto = velocita_massima / velocita
+        lottatore['velocita_x'] *= rapporto
+        lottatore['velocita_y'] *= rapporto
     
-    def update_ai(self, platforms, target_color, other_wrestlers):
-        """AI per i bot con difficoltà variabile"""
-        if not platforms or not target_color:
-            return
-        
-        # Timer per le decisioni
-        self.ai_timer += 1
-        
-        if self.ai_timer > self.ai_reaction_time or not self.target_platform:
-            # Trova piattaforme con il colore target
-            valid_platforms = [p for p in platforms 
-                             if p.color_name == target_color and p.active]
-            
-            if valid_platforms:
-                # Scelta della piattaforma basata sulla qualità delle decisioni
-                if random.random() < self.ai_decision_quality:
-                    # Scelta ottimale: piattaforma più vicina
-                    self.target_platform = min(valid_platforms, 
-                        key=lambda p: math.sqrt((p.get_center()[0] - self.x)**2 + 
-                                               (p.get_center()[1] - self.y)**2))
-                else:
-                    # Scelta casuale
-                    self.target_platform = random.choice(valid_platforms)
-                
-                self.ai_timer = 0
-                self.ai_reaction_time = self.get_ai_reaction_time()
-        
-        # Muovi verso la piattaforma target
-        if self.target_platform and self.target_platform.active:
-            tx, ty = self.target_platform.get_center()
-            
-            dx = tx - self.x
-            dy = ty - self.y
-            distance = math.sqrt(dx**2 + dy**2)
-            
-            if distance > 5:
-                movement_factor = 0.5 if self.difficulty == Difficulty.EASY else 0.8
-                self.velocity_x += (dx / distance) * self.acceleration * movement_factor
-                self.velocity_y += (dy / distance) * self.acceleration * movement_factor
-        
-        # AI per l'attacco
-        if self.attack_cooldown == 0 and other_wrestlers:
-            for other in other_wrestlers:
-                if other.alive and other != self:
-                    dx = other.x - self.x
-                    dy = other.y - self.y
-                    distance = math.sqrt(dx**2 + dy**2)
-                    
-                    if distance < self.attack_range * 1.2 and random.random() < self.ai_attack_chance:
-                        self.perform_attack(other_wrestlers)
-                        break
+    # Applica attrito (rallenta gradualmente)
+    lottatore['velocita_x'] *= 0.85
+    lottatore['velocita_y'] *= 0.85
     
-    def check_on_platform(self, platforms, target_color=None):
-        """Controlla se il lottatore è su una piattaforma"""
-        for platform in platforms:
-            if platform.active and platform.contains_point(self.x, self.y):
-                if target_color is None or platform.color_name == target_color:
-                    return True
-        return False
+    # Aggiorna posizione
+    lottatore['x'] += lottatore['velocita_x']
+    lottatore['y'] += lottatore['velocita_y']
     
-    def reset_position(self):
-        """Resetta alla posizione di spawn"""
-        self.x = self.spawn_x
-        self.y = self.spawn_y
-        self.velocity_x = 0
-        self.velocity_y = 0
-        self.alive = True
-        self.attacking = False
-        self.attack_cooldown = 0
-        self.attack_duration = 0
-    
-    def draw(self, screen):
-        """Disegna il lottatore"""
-        if not self.alive and self.y > HEIGHT + 50:
-            return
-        
-        pos = (int(self.x), int(self.y))
-        
-        # INDICATORE GIOCATORE UMANO - Corona dorata sopra la testa
-        if not self.is_bot and self.alive:
-            crown_y = pos[1] - self.radius - 25
-            # Sfondo corona
-            pygame.draw.circle(screen, (255, 215, 0), (pos[0], crown_y), 10)
-            # Stella interna
-            points = []
-            for i in range(5):
-                angle = (2 * math.pi / 5) * i - math.pi / 2
-                px = pos[0] + math.cos(angle) * 8
-                py = crown_y + math.sin(angle) * 8
-                points.append((px, py))
-            pygame.draw.polygon(screen, (255, 255, 100), points)
-            
-            # Bordo dorato sul personaggio
-            pygame.draw.circle(screen, (255, 215, 0), pos, self.radius + 3, 3)
-        
-        # Effetto attacco
-        if self.attacking and self.attack_duration > 5:
-            attack_radius = self.radius + (15 - self.attack_duration) * 2
-            pygame.draw.circle(screen, (255, 255, 0, 100), pos, attack_radius, 3)
-        
-        # Ombra
-        if self.alive:
-            pygame.draw.ellipse(screen, (0, 0, 0, 100), 
-                              (pos[0] - self.radius, pos[1] + 5, 
-                               self.radius * 2, self.radius))
-        
-        # Corpo
-        body_radius = self.radius + (3 if self.attacking else 0)
-        pygame.draw.circle(screen, self.body_color, pos, body_radius)
-        pygame.draw.circle(screen, (0, 0, 0), pos, body_radius, 2)
-        
-        # Cintura
-        pygame.draw.rect(screen, self.belt_color, 
-                        (pos[0] - body_radius, pos[1] - 3, 
-                         body_radius * 2, 6))
-        
-        # Testa
-        head_y = int(self.y - body_radius + 10)
-        pygame.draw.circle(screen, self.skin_color, 
-                         (pos[0], head_y), self.head_radius)
-        pygame.draw.circle(screen, (0, 0, 0), 
-                         (pos[0], head_y), self.head_radius, 2)
-        
-        # Capelli
-        hair_y = head_y - self.head_radius + 3
-        pygame.draw.circle(screen, (20, 20, 20), 
-                         (pos[0], hair_y), 5)
-        
-        # Occhi
-        eye_offset = 5
-        eye_y = head_y
-        if self.attacking:
-            pygame.draw.line(screen, (0, 0, 0), 
-                           (pos[0] - eye_offset - 2, eye_y),
-                           (pos[0] - eye_offset + 2, eye_y), 2)
-            pygame.draw.line(screen, (0, 0, 0),
-                           (pos[0] + eye_offset - 2, eye_y),
-                           (pos[0] + eye_offset + 2, eye_y), 2)
-        else:
-            pygame.draw.circle(screen, (255, 255, 255), 
-                             (pos[0] - eye_offset, eye_y), 3)
-            pygame.draw.circle(screen, (0, 0, 0), 
-                             (pos[0] - eye_offset, eye_y), 1)
-            pygame.draw.circle(screen, (255, 255, 255), 
-                             (pos[0] + eye_offset, eye_y), 3)
-            pygame.draw.circle(screen, (0, 0, 0), 
-                             (pos[0] + eye_offset, eye_y), 1)
-        
-        # Nome (colore oro per il giocatore)
-        if self.alive:
-            font = pygame.font.Font(None, 20 if not self.is_bot else 18)
-            name_color = (255, 215, 0) if not self.is_bot else (255, 255, 255)
-            name_surface = font.render(self.name, True, name_color)
-            name_rect = name_surface.get_rect(center=(pos[0], pos[1] - body_radius - 12))
-            
-            bg_color = (50, 40, 0) if not self.is_bot else (0, 0, 0)
-            bg_rect = name_rect.inflate(10, 5)
-            pygame.draw.rect(screen, bg_color, bg_rect, border_radius=3)
-            screen.blit(name_surface, name_rect)
-        
-        # Barra cooldown attacco
-        if self.attack_cooldown > 0 and self.alive:
-            cooldown_ratio = self.attack_cooldown / 60
-            bar_width = body_radius * 2
-            bar_height = 3
-            bar_x = pos[0] - body_radius
-            bar_y = pos[1] + body_radius + 8
-            
-            pygame.draw.rect(screen, (100, 100, 100), 
-                           (bar_x, bar_y, bar_width, bar_height))
-            pygame.draw.rect(screen, (255, 200, 0), 
-                           (bar_x, bar_y, bar_width * cooldown_ratio, bar_height))
+    # Limiti dello schermo
+    lottatore['x'] = max(22, min(LARGHEZZA - 22, lottatore['x']))
+    lottatore['y'] = max(22, min(ALTEZZA - 22, lottatore['y']))
 
 
-class Game:
-    """Classe principale del gioco"""
+def lottatore_esegui_attacco(lottatore, tutti_lottatori):
+    """Esegue un attacco pancia (stile Kung Fu Panda) - SPINTA DOPPIA!"""
     
-    def __init__(self):
-        pygame.init()
-        self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
-        pygame.display.set_caption("Sumo Color Survival - 8 Players")
-        self.clock = pygame.time.Clock()
-        
-        # Stato del gioco
-        self.state = GameState.MENU
-        self.difficulty = Difficulty.EASY
-        self.platforms = []
-        self.wrestlers = []
-        self.target_color = None
-        self.countdown = 3.0
-        self.round_number = 1
-        self.winner = None
-        self.platforms_disappeared = False
-        
-        # Font
-        self.title_font = pygame.font.Font(None, 90)
-        self.big_font = pygame.font.Font(None, 60)
-        self.medium_font = pygame.font.Font(None, 40)
-        self.small_font = pygame.font.Font(None, 26)
-        self.tiny_font = pygame.font.Font(None, 22)
-        
-        # Bottoni menu - LAYOUT MIGLIORATO
-        self.difficulty_buttons = {
-            Difficulty.EASY: pygame.Rect(WIDTH // 2 - 180, 340, 360, 70),
-            Difficulty.MEDIUM: pygame.Rect(WIDTH // 2 - 180, 430, 360, 70),
-            Difficulty.HARD: pygame.Rect(WIDTH // 2 - 180, 520, 360, 70)
-        }
-        self.start_button = pygame.Rect(WIDTH // 2 - 200, 650, 400, 80)
-        
-        # Bottone restart - SEMPRE VISIBILE DURANTE IL GIOCO
-        self.restart_button = pygame.Rect(40, HEIGHT // 2 - 50, 300, 100)
+    lottatore['attaccando'] = True
+    lottatore['durata_attacco'] = 15
+    lottatore['cooldown_attacco'] = 60  # 1 secondo
     
-    def setup_game(self):
-        """Inizializza il gioco"""
-        self.platforms = []
-        self.wrestlers = []
-        self.round_number = 1
-        self.winner = None
-        self.platforms_disappeared = False
-        
-        self.create_platforms()
-        
-        grid_center_x = WIDTH // 2
-        grid_center_y = HEIGHT // 2 + 30
-        
-        num_players = 8
-        spawn_radius = 80
-        
-        player_colors = [
-            (255, 100, 100),  # Rosso chiaro (Player)
-            (100, 255, 100),
-            (100, 100, 255),
-            (255, 255, 100),
-            (255, 100, 255),
-            (100, 255, 255),
-            (255, 150, 100),
-            (200, 100, 255)
-        ]
-        
-        for i in range(num_players):
-            angle = (2 * math.pi / num_players) * i
-            spawn_x = grid_center_x + math.cos(angle) * spawn_radius
-            spawn_y = grid_center_y + math.sin(angle) * spawn_radius
+    raggio_attacco = 50
+    spinta_attacco = 250  # RADDOPPIATA! Da 120 a 250!
+    
+    # Cerca altri giocatori da colpire
+    for altro in tutti_lottatori:
+        if altro['vivo'] and altro != lottatore:
+            dx = altro['x'] - lottatore['x']
+            dy = altro['y'] - lottatore['y']
+            distanza = math.sqrt(dx**2 + dy**2)
             
-            if i == 0:
-                name = "TU"
-                is_bot = False
+            if distanza < raggio_attacco and distanza > 0:
+                # Calcola direzione della spinta
+                spinta_x = (dx / distanza) * spinta_attacco
+                spinta_y = (dy / distanza) * spinta_attacco
+                
+                # Applica la spinta all'avversario
+                altro['velocita_x'] += spinta_x
+                altro['velocita_y'] += spinta_y
+
+
+def lottatore_aggiorna_ai(lottatore, lista_piattaforme, nome_colore_target, tutti_lottatori):
+    """Intelligenza artificiale per i bot - MIGLIORATA"""
+    
+    if not lista_piattaforme or not nome_colore_target:
+        return
+    
+    # Timer per prendere decisioni
+    lottatore['timer_ai'] += 1
+    
+    # Ogni tot frame, sceglie una nuova piattaforma target
+    if lottatore['timer_ai'] > lottatore['tempo_reazione_ai'] or lottatore['piattaforma_target'] is None:
+        # Trova piattaforme con il colore giusto
+        piattaforme_valide = [p for p in lista_piattaforme 
+                             if p['nome_colore'] == nome_colore_target and p['attiva']]
+        
+        if piattaforme_valide:
+            # Sceglie la piattaforma in base alla qualità delle decisioni
+            if random.random() < lottatore['qualita_decisioni_ai']:
+                # Scelta ottimale: piattaforma più vicina
+                lottatore['piattaforma_target'] = min(piattaforme_valide, 
+                    key=lambda p: math.sqrt((piattaforma_ottieni_centro(p)[0] - lottatore['x'])**2 + 
+                                           (piattaforma_ottieni_centro(p)[1] - lottatore['y'])**2))
             else:
-                name = f"BOT {i}"
-                is_bot = True
+                # Scelta casuale
+                lottatore['piattaforma_target'] = random.choice(piattaforme_valide)
             
-            wrestler = SumoWrestler(
-                spawn_x,
-                spawn_y,
-                player_colors[i],
-                name,
-                is_bot=is_bot,
-                difficulty=self.difficulty
-            )
-            self.wrestlers.append(wrestler)
+            lottatore['timer_ai'] = 0
+            lottatore['tempo_reazione_ai'] = ottieni_tempo_reazione_ai(lottatore['difficolta'])
     
-    def create_platforms(self):
-        """Crea la griglia di piattaforme con ESATTAMENTE 5 piattaforme per ogni colore"""
-        self.platforms = []
+    # Muovi verso la piattaforma target
+    if lottatore['piattaforma_target'] and lottatore['piattaforma_target']['attiva']:
+        tx, ty = piattaforma_ottieni_centro(lottatore['piattaforma_target'])
         
-        rows = 6
-        cols = 5
-        platform_width = 110
-        platform_height = 85
-        spacing = 8
+        dx = tx - lottatore['x']
+        dy = ty - lottatore['y']
+        distanza = math.sqrt(dx**2 + dy**2)
         
-        grid_width = cols * platform_width + (cols - 1) * spacing
-        grid_height = rows * platform_height + (rows - 1) * spacing
-        offset_x = (WIDTH - grid_width) // 2
-        offset_y = (HEIGHT - grid_height) // 2 + 30
-        
-        color_list = []
-        for color_name in COLOR_NAMES:
-            color_list.extend([color_name] * 5)
-        
-        random.shuffle(color_list)
-        
-        idx = 0
-        for row in range(rows):
-            for col in range(cols):
-                x = offset_x + col * (platform_width + spacing)
-                y = offset_y + row * (platform_height + spacing)
-                
-                color_name = color_list[idx]
-                platform = Platform(x, y, platform_width, platform_height, color_name)
-                self.platforms.append(platform)
-                idx += 1
+        if distanza > 5:
+            # BOT PIÙ FORTI: movimento più veloce anche in modalità facile
+            fattore_movimento = 0.75 if lottatore['difficolta'] == "FACILE" else 0.9
+            lottatore['velocita_x'] += (dx / distanza) * 0.6 * fattore_movimento
+            lottatore['velocita_y'] += (dy / distanza) * 0.6 * fattore_movimento
     
-    def start_round(self):
-        """Inizia un nuovo round"""
-        self.state = GameState.PLAYING
-        self.countdown = 3.0
-        self.platforms_disappeared = False
-        
-        self.target_color = random.choice(COLOR_NAMES)
-        
-        for platform in self.platforms:
-            platform.active = True
-            platform.disappear_progress = 0
-        
-        for wrestler in self.wrestlers:
-            if wrestler.is_bot:
-                wrestler.ai_timer = 0
-                wrestler.target_platform = None
+    # AI per l'attacco
+    if lottatore['cooldown_attacco'] == 0 and tutti_lottatori:
+        for altro in tutti_lottatori:
+            if altro['vivo'] and altro != lottatore:
+                dx = altro['x'] - lottatore['x']
+                dy = altro['y'] - lottatore['y']
+                distanza = math.sqrt(dx**2 + dy**2)
+                
+                if distanza < 60 and random.random() < lottatore['probabilita_attacco_ai']:
+                    lottatore_esegui_attacco(lottatore, tutti_lottatori)
+                    break
+
+
+def lottatore_controlla_su_piattaforma(lottatore, lista_piattaforme, nome_colore_target=None):
+    """Controlla se il giocatore è su una piattaforma (opzionalmente del colore giusto)"""
+    for piattaforma in lista_piattaforme:
+        if piattaforma['attiva'] and piattaforma_contiene_punto(piattaforma, lottatore['x'], lottatore['y']):
+            if nome_colore_target is None or piattaforma['nome_colore'] == nome_colore_target:
+                return True
+    return False
+
+
+def lottatore_resetta_posizione(lottatore):
+    """Riporta il giocatore alla posizione iniziale"""
+    lottatore['x'] = lottatore['spawn_x']
+    lottatore['y'] = lottatore['spawn_y']
+    lottatore['velocita_x'] = 0
+    lottatore['velocita_y'] = 0
+    lottatore['vivo'] = True
+    lottatore['attaccando'] = False
+    lottatore['cooldown_attacco'] = 0
+    lottatore['durata_attacco'] = 0
+
+
+def lottatore_disegna(schermo, lottatore):
+    """Disegna un lottatore con grafica REALISTICA"""
     
-    def update(self):
-        """Aggiorna la logica del gioco"""
-        if self.state == GameState.PLAYING:
-            self.countdown -= 1/60
+    # I bot morti cadono sempre visibili (rimosso il controllo che li nascondeva)
+    
+    pos = (int(lottatore['x']), int(lottatore['y']))
+    raggio = 28  # Più grande per più dettagli
+    
+    # CORONA PER IL GIOCATORE UMANO
+    if not lottatore['è_bot'] and lottatore['vivo']:
+        corona_y = pos[1] - raggio - 28
+        # Corona più elaborata
+        pygame.draw.circle(schermo, (255, 215, 0), (pos[0], corona_y), 12)
+        pygame.draw.circle(schermo, (200, 150, 0), (pos[0], corona_y), 12, 2)
+        
+        # Stella nella corona
+        punti = []
+        for i in range(5):
+            angolo = (2 * math.pi / 5) * i - math.pi / 2
+            px = pos[0] + math.cos(angolo) * 9
+            py = corona_y + math.sin(angolo) * 9
+            punti.append((px, py))
+        pygame.draw.polygon(schermo, (255, 255, 150), punti)
+        
+        # Bordo dorato brillante
+        pygame.draw.circle(schermo, (255, 215, 0), pos, raggio + 4, 4)
+    
+    # Effetto attacco più evidente
+    if lottatore['attaccando'] and lottatore['durata_attacco'] > 5:
+        raggio_attacco = raggio + (15 - lottatore['durata_attacco']) * 3
+        pygame.draw.circle(schermo, (255, 255, 0), pos, raggio_attacco, 4)
+        pygame.draw.circle(schermo, (255, 200, 0), pos, raggio_attacco - 5, 2)
+    
+    # Ombra più realistica
+    if lottatore['vivo']:
+        ombra = pygame.Surface((raggio * 3, raggio))
+        ombra.set_alpha(80)
+        ombra.fill((0, 0, 0))
+        schermo.blit(ombra, (pos[0] - raggio * 1.5, pos[1] + 8))
+    
+    # CORPO REALISTICO - Più muscoloso
+    raggio_corpo = raggio + (4 if lottatore['attaccando'] else 0)
+    
+    # Sfumatura del corpo (3 cerchi per effetto 3D)
+    pygame.draw.circle(schermo, tuple(max(0, c - 40) for c in lottatore['colore_corpo']), 
+                      pos, raggio_corpo)
+    pygame.draw.circle(schermo, lottatore['colore_corpo'], 
+                      (pos[0] - 3, pos[1] - 3), raggio_corpo - 2)
+    pygame.draw.circle(schermo, tuple(min(255, c + 30) for c in lottatore['colore_corpo']), 
+                      (pos[0] - 5, pos[1] - 5), raggio_corpo - 8)
+    
+    # Bordo corpo
+    pygame.draw.circle(schermo, (0, 0, 0), pos, raggio_corpo, 3)
+    
+    # Muscoli pettorali (due cerchi)
+    offset_muscoli = 8
+    pygame.draw.circle(schermo, tuple(max(0, c - 20) for c in lottatore['colore_corpo']),
+                      (pos[0] - offset_muscoli, pos[1] - 5), 10)
+    pygame.draw.circle(schermo, tuple(max(0, c - 20) for c in lottatore['colore_corpo']),
+                      (pos[0] + offset_muscoli, pos[1] - 5), 10)
+    
+    # Addominali (linee)
+    pygame.draw.line(schermo, tuple(max(0, c - 50) for c in lottatore['colore_corpo']),
+                    (pos[0] - 6, pos[1] + 5), (pos[0] - 3, pos[1] + 12), 2)
+    pygame.draw.line(schermo, tuple(max(0, c - 50) for c in lottatore['colore_corpo']),
+                    (pos[0] + 3, pos[1] + 5), (pos[0] + 6, pos[1] + 12), 2)
+    
+    # Cintura più dettagliata
+    pygame.draw.rect(schermo, (40, 40, 40), 
+                    (pos[0] - raggio_corpo, pos[1] - 2, raggio_corpo * 2, 8))
+    pygame.draw.rect(schermo, (70, 70, 70), 
+                    (pos[0] - raggio_corpo, pos[1] - 2, raggio_corpo * 2, 3))
+    # Fibbia cintura
+    pygame.draw.circle(schermo, (200, 180, 100), (pos[0], pos[1]), 5)
+    pygame.draw.circle(schermo, (150, 130, 50), (pos[0], pos[1]), 5, 2)
+    
+    # TESTA più realistica
+    raggio_testa = 16
+    testa_y = int(lottatore['y'] - raggio_corpo + 12)
+    
+    # Sfumatura testa
+    pygame.draw.circle(schermo, (230, 200, 160), (pos[0], testa_y), raggio_testa)
+    pygame.draw.circle(schermo, (255, 220, 177), (pos[0] - 2, testa_y - 2), raggio_testa - 2)
+    pygame.draw.circle(schermo, (0, 0, 0), (pos[0], testa_y), raggio_testa, 2)
+    
+    # Capelli più realistici (chonmage - nodo tradizionale sumo)
+    capelli_y = testa_y - raggio_testa + 4
+    pygame.draw.circle(schermo, (20, 20, 20), (pos[0], capelli_y), 7)
+    pygame.draw.circle(schermo, (10, 10, 10), (pos[0], capelli_y - 3), 4)
+    
+    # Viso più espressivo
+    offset_occhi = 6
+    occhi_y = testa_y + 2
+    
+    if lottatore['attaccando']:
+        # Occhi chiusi aggressivi
+        pygame.draw.line(schermo, (0, 0, 0), 
+                       (pos[0] - offset_occhi - 3, occhi_y),
+                       (pos[0] - offset_occhi + 3, occhi_y - 2), 3)
+        pygame.draw.line(schermo, (0, 0, 0),
+                       (pos[0] + offset_occhi - 3, occhi_y - 2),
+                       (pos[0] + offset_occhi + 3, occhi_y), 3)
+    else:
+        # Occhi aperti più realistici
+        # Bianco occhio
+        pygame.draw.ellipse(schermo, (255, 255, 255), 
+                          (pos[0] - offset_occhi - 4, occhi_y - 3, 8, 6))
+        pygame.draw.ellipse(schermo, (255, 255, 255), 
+                          (pos[0] + offset_occhi - 4, occhi_y - 3, 8, 6))
+        # Iride
+        pygame.draw.circle(schermo, (80, 60, 40), (pos[0] - offset_occhi, occhi_y), 3)
+        pygame.draw.circle(schermo, (80, 60, 40), (pos[0] + offset_occhi, occhi_y), 3)
+        # Pupilla
+        pygame.draw.circle(schermo, (0, 0, 0), (pos[0] - offset_occhi, occhi_y), 2)
+        pygame.draw.circle(schermo, (0, 0, 0), (pos[0] + offset_occhi, occhi_y), 2)
+    
+    # Sopracciglia
+    pygame.draw.line(schermo, (40, 30, 20),
+                    (pos[0] - offset_occhi - 5, occhi_y - 6),
+                    (pos[0] - offset_occhi + 3, occhi_y - 7), 2)
+    pygame.draw.line(schermo, (40, 30, 20),
+                    (pos[0] + offset_occhi - 3, occhi_y - 7),
+                    (pos[0] + offset_occhi + 5, occhi_y - 6), 2)
+    
+    # Naso
+    pygame.draw.circle(schermo, (220, 190, 150), (pos[0], testa_y + 8), 3)
+    
+    # Bocca (sorride se sta vincendo, seria se attacca)
+    if lottatore['attaccando']:
+        pygame.draw.arc(schermo, (100, 50, 50), 
+                       (pos[0] - 6, testa_y + 10, 12, 8), 0, math.pi, 2)
+    else:
+        pygame.draw.arc(schermo, (150, 80, 80), 
+                       (pos[0] - 7, testa_y + 8, 14, 10), math.pi, 2 * math.pi, 2)
+    
+    # Nome con sfondo migliore
+    if lottatore['vivo']:
+        font = pygame.font.Font(None, 22 if not lottatore['è_bot'] else 20)
+        colore_nome = (255, 215, 0) if not lottatore['è_bot'] else (255, 255, 255)
+        superficie_nome = font.render(lottatore['nome'], True, colore_nome)
+        rett_nome = superficie_nome.get_rect(center=(pos[0], pos[1] - raggio_corpo - 15))
+        
+        colore_sfondo = (50, 40, 0) if not lottatore['è_bot'] else (0, 0, 0)
+        rett_sfondo = rett_nome.inflate(12, 6)
+        pygame.draw.rect(schermo, colore_sfondo, rett_sfondo, border_radius=5)
+        pygame.draw.rect(schermo, colore_nome, rett_sfondo, 2, border_radius=5)
+        schermo.blit(superficie_nome, rett_nome)
+
+
+def crea_tutti_lottatori(livello_difficolta):
+    """Crea tutti gli 8 giocatori (1 umano + 7 bot)"""
+    lista_lottatori = []
+    
+    # Centro della griglia
+    centro_griglia_x = LARGHEZZA // 2
+    centro_griglia_y = ALTEZZA // 2 + 30
+    
+    num_giocatori = 8
+    raggio_spawn = 100
+    
+    # Colori diversi per ogni giocatore
+    colori_giocatori = [
+        (255, 100, 100),  # Rosso chiaro (GIOCATORE UMANO)
+        (100, 255, 100),  # Verde chiaro
+        (100, 100, 255),  # Blu chiaro
+        (255, 255, 100),  # Giallo chiaro
+        (255, 100, 255),  # Magenta
+        (100, 255, 255),  # Ciano
+        (255, 150, 100),  # Arancione chiaro
+        (200, 100, 255)   # Viola
+    ]
+    
+    # Crea i giocatori in cerchio
+    for i in range(num_giocatori):
+        angolo = (2 * math.pi / num_giocatori) * i
+        spawn_x = centro_griglia_x + math.cos(angolo) * raggio_spawn
+        spawn_y = centro_griglia_y + math.sin(angolo) * raggio_spawn
+        
+        if i == 0:
+            # Primo giocatore = umano
+            nome = "TU"
+            è_bot = False
+        else:
+            # Altri giocatori = bot
+            nome = f"BOT {i}"
+            è_bot = True
+        
+        lottatore = crea_lottatore(spawn_x, spawn_y, colori_giocatori[i], nome, è_bot, livello_difficolta)
+        lista_lottatori.append(lottatore)
+    
+    return lista_lottatori
+
+
+# ==============================================================================
+# FUNZIONI PER IL MENU E L'INTERFACCIA
+# ==============================================================================
+
+def disegna_pannello(schermo, rett, titolo, font):
+    """Disegna un pannello bianco moderno con titolo"""
+    
+    # Ombra
+    rett_ombra = rett.copy()
+    rett_ombra.x += 5
+    rett_ombra.y += 5
+    pygame.draw.rect(schermo, (10, 10, 15), rett_ombra, border_radius=15)
+    
+    # Pannello principale bianco
+    pygame.draw.rect(schermo, (240, 240, 245), rett, border_radius=15)
+    pygame.draw.rect(schermo, (200, 200, 210), rett, 3, border_radius=15)
+    
+    # Header (parte superiore del pannello)
+    rett_header = pygame.Rect(rett.x, rett.y, rett.width, 50)
+    pygame.draw.rect(schermo, (220, 220, 230), rett_header, 
+                    border_top_left_radius=15, border_top_right_radius=15)
+    
+    # Titolo
+    testo_titolo = font.render(titolo, True, (50, 50, 50))
+    rett_titolo = testo_titolo.get_rect(center=(rett.centerx, rett.y + 25))
+    schermo.blit(testo_titolo, rett_titolo)
+
+
+def disegna_menu(schermo, fonts, pos_mouse):
+    """Disegna il menu principale"""
+    
+    # Titolo
+    titolo = fonts['titolo'].render("SUMO COLOR SURVIVAL", True, (255, 255, 255))
+    rett_titolo = titolo.get_rect(center=(LARGHEZZA // 2, 120))
+    schermo.blit(titolo, rett_titolo)
+    
+    # Posizioni dei 3 pannelli
+    larghezza_pannello = 380
+    altezza_pannello = 280
+    spaziatura_pannello = 50
+    larghezza_totale = larghezza_pannello * 3 + spaziatura_pannello * 2
+    inizio_x = (LARGHEZZA - larghezza_totale) // 2
+    centro_y = ALTEZZA // 2
+    
+    rett_pannelli = {
+        'difficolta': pygame.Rect(inizio_x, centro_y - altezza_pannello // 2, 
+                                 larghezza_pannello, altezza_pannello),
+        'controlli': pygame.Rect(inizio_x + larghezza_pannello + spaziatura_pannello, 
+                                centro_y - altezza_pannello // 2, 
+                                larghezza_pannello, altezza_pannello),
+        'inizio': pygame.Rect(inizio_x + (larghezza_pannello + spaziatura_pannello) * 2, 
+                            centro_y - altezza_pannello // 2, 
+                            larghezza_pannello, altezza_pannello)
+    }
+    
+    # PANNELLO 1: DIFFICOLTÀ
+    pannello = rett_pannelli['difficolta']
+    disegna_pannello(schermo, pannello, "DIFFICOLTÀ", fonts['medio'])
+    
+    # Bottoni difficoltà
+    dati_diff = [
+        ("FACILE", "FACILE", (100, 255, 100)),
+        ("MEDIO", "MEDIO", (255, 200, 100)),
+        ("DIFFICILE", "DIFFICILE", (255, 100, 100))
+    ]
+    
+    bottoni_difficolta = {}
+    y_bottone = pannello.y + 80
+    
+    for i, (valore_diff, testo_diff, colore_diff) in enumerate(dati_diff):
+        bottone = pygame.Rect(pannello.centerx - 150, y_bottone + i * 60, 300, 50)
+        bottoni_difficolta[valore_diff] = bottone
+        
+        è_selezionato = (difficolta == valore_diff)
+        è_hover = bottone.collidepoint(pos_mouse)
+        
+        if è_selezionato:
+            pygame.draw.rect(schermo, colore_diff, bottone, border_radius=10)
+            colore_testo = (0, 0, 0)
+        elif è_hover:
+            pygame.draw.rect(schermo, (200, 200, 200), bottone, border_radius=10)
+            pygame.draw.rect(schermo, colore_diff, bottone, 3, border_radius=10)
+            colore_testo = (0, 0, 0)
+        else:
+            pygame.draw.rect(schermo, (180, 180, 180), bottone, border_radius=10)
+            colore_testo = (50, 50, 50)
+        
+        testo_btn = fonts['medio'].render(testo_diff, True, colore_testo)
+        rett_testo_btn = testo_btn.get_rect(center=bottone.center)
+        schermo.blit(testo_btn, rett_testo_btn)
+    
+    # PANNELLO 2: CONTROLLI
+    pannello = rett_pannelli['controlli']
+    disegna_pannello(schermo, pannello, "CONTROLLI", fonts['medio'])
+    
+    controlli = [
+        "WASD - Movimento",
+        "",
+        "Click Sinistro",
+        "Attacco Pancia",
+        "",
+        "Obiettivo:",
+        "Colore giusto!"
+    ]
+    
+    offset_y = pannello.y + 70
+    for testo in controlli:
+        if testo:
+            surf = fonts['piccolo'].render(testo, True, (50, 50, 50))
+            rett = surf.get_rect(center=(pannello.centerx, offset_y))
+            schermo.blit(surf, rett)
+        offset_y += 28
+    
+    # PANNELLO 3: INIZIO
+    pannello = rett_pannelli['inizio']
+    disegna_pannello(schermo, pannello, "GIOCA", fonts['medio'])
+    
+    # Bottone INIZIO grande
+    bottone_inizio = pygame.Rect(pannello.centerx - 150, pannello.centery - 40, 300, 80)
+    è_hover_inizio = bottone_inizio.collidepoint(pos_mouse)
+    
+    if è_hover_inizio:
+        pygame.draw.rect(schermo, (100, 220, 100), bottone_inizio, border_radius=15)
+    else:
+        pygame.draw.rect(schermo, (80, 180, 80), bottone_inizio, border_radius=15)
+    
+    pygame.draw.rect(schermo, (150, 255, 150), bottone_inizio, 4, border_radius=15)
+    
+    testo_inizio = fonts['grande'].render("INIZIA", True, (255, 255, 255))
+    rett_testo_inizio = testo_inizio.get_rect(center=bottone_inizio.center)
+    schermo.blit(testo_inizio, rett_testo_inizio)
+    
+    # Info sotto
+    info = fonts['piccolo'].render("8 Giocatori - Sopravvivi!", True, (150, 150, 150))
+    rett_info = info.get_rect(center=(LARGHEZZA // 2, ALTEZZA - 50))
+    schermo.blit(info, rett_info)
+    
+    return bottoni_difficolta, bottone_inizio
+
+
+def disegna_hud_gioco(schermo, fonts, num_round, diff, col_target, stato, conta, lista_lottatori):
+    """Disegna l'HUD (interfaccia) durante il gioco"""
+    
+    # Barra superiore scura
+    pygame.draw.rect(schermo, (0, 0, 0, 200), (0, 0, LARGHEZZA, 90))
+    
+    # Round e difficoltà (sinistra)
+    testo_round = fonts['medio'].render(f"ROUND {num_round}", True, (255, 255, 255))
+    schermo.blit(testo_round, (20, 15))
+    
+    nomi_diff = {"FACILE": "FACILE", "MEDIO": "MEDIO", "DIFFICILE": "DIFFICILE"}
+    colori_diff = {"FACILE": (100, 255, 100), "MEDIO": (255, 200, 100), "DIFFICILE": (255, 100, 100)}
+    testo_diff = fonts['piccolo'].render(nomi_diff[diff], True, colori_diff[diff])
+    schermo.blit(testo_diff, (20, 55))
+    
+    # Colore target (centro)
+    if stato == "GIOCANDO":
+        testo_target = fonts['grande'].render(f"{col_target}", True, COLORI[col_target])
+        rett_target = testo_target.get_rect(center=(LARGHEZZA // 2, 35))
+        
+        rett_box = rett_target.inflate(40, 20)
+        pygame.draw.rect(schermo, COLORI[col_target], rett_box, 5, border_radius=10)
+        
+        schermo.blit(testo_target, rett_target)
+        
+        if conta > 0:
+            testo_conta = fonts['grande'].render(f"{int(conta) + 1}", True, (255, 200, 0))
+            rett_conta = testo_conta.get_rect(center=(LARGHEZZA // 2, 75))
+            schermo.blit(testo_conta, rett_conta)
+    
+    # Giocatori vivi (destra)
+    conteggio_vivi = sum(1 for l in lista_lottatori if l['vivo'])
+    testo_vivi = fonts['medio'].render(f"Vivi: {conteggio_vivi}/8", True, (0, 255, 0))
+    schermo.blit(testo_vivi, (LARGHEZZA - 150, 15))
+    
+    # Pannello ricarica attacco (destra)
+    giocatore = None
+    for l in lista_lottatori:
+        if not l['è_bot']:
+            giocatore = l
+            break
+    
+    if giocatore and giocatore['vivo']:
+        x_pannello = LARGHEZZA - 300
+        y_pannello = 120
+        largh_pannello = 280
+        alt_pannello = 140
+        
+        # Pannello
+        rett_pannello = pygame.Rect(x_pannello, y_pannello, largh_pannello, alt_pannello)
+        pygame.draw.rect(schermo, (40, 40, 50), rett_pannello, border_radius=10)
+        pygame.draw.rect(schermo, (100, 100, 120), rett_pannello, 3, border_radius=10)
+        
+        # Titolo
+        titolo = fonts['piccolo'].render("ATTACCO PANCIA", True, (255, 215, 0))
+        rett_titolo = titolo.get_rect(center=(x_pannello + largh_pannello // 2, y_pannello + 25))
+        schermo.blit(titolo, rett_titolo)
+        
+        # Descrizione
+        desc1 = fonts['piccolo'].render("Click Sinistro per colpire", True, (200, 200, 200))
+        rett_desc1 = desc1.get_rect(center=(x_pannello + largh_pannello // 2, y_pannello + 55))
+        schermo.blit(desc1, rett_desc1)
+        
+        desc2 = fonts['piccolo'].render("Spinta: SUPER FORTE!", True, (255, 150, 150))
+        rett_desc2 = desc2.get_rect(center=(x_pannello + largh_pannello // 2, y_pannello + 75))
+        schermo.blit(desc2, rett_desc2)
+        
+        # Barra ricarica
+        largh_barra = 240
+        alt_barra = 25
+        x_barra = x_pannello + (largh_pannello - largh_barra) // 2
+        y_barra = y_pannello + 100
+        
+        # Sfondo barra
+        pygame.draw.rect(schermo, (60, 60, 70), (x_barra, y_barra, largh_barra, alt_barra), border_radius=5)
+        
+        if giocatore['cooldown_attacco'] > 0:
+            # Ricarica in corso
+            progresso = 1 - (giocatore['cooldown_attacco'] / 60)
+            largh_riempimento = int(largh_barra * progresso)
+            pygame.draw.rect(schermo, (255, 200, 0), (x_barra, y_barra, largh_riempimento, alt_barra), border_radius=5)
             
-            keys = pygame.key.get_pressed()
-            mouse_buttons = pygame.mouse.get_pressed()
+            # Percentuale
+            testo_percentuale = fonts['piccolo'].render(f"{int(progresso * 100)}%", True, (255, 255, 255))
+            rett_percentuale = testo_percentuale.get_rect(center=(x_barra + largh_barra // 2, y_barra + alt_barra // 2))
+            schermo.blit(testo_percentuale, rett_percentuale)
+        else:
+            # Pronto!
+            pygame.draw.rect(schermo, (100, 255, 100), (x_barra, y_barra, largh_barra, alt_barra), border_radius=5)
+            testo_pronto = fonts['piccolo'].render("PRONTO!", True, (0, 100, 0))
+            rett_pronto = testo_pronto.get_rect(center=(x_barra + largh_barra // 2, y_barra + alt_barra // 2))
+            schermo.blit(testo_pronto, rett_pronto)
+        
+        # Bordo barra
+        pygame.draw.rect(schermo, (150, 150, 160), (x_barra, y_barra, largh_barra, alt_barra), 2, border_radius=5)
+
+
+def disegna_bottone_riavvio(schermo, fonts, pos_mouse):
+    """Disegna il bottone per riavviare il gioco"""
+    
+    bottone_riavvio = pygame.Rect(40, ALTEZZA // 2 - 50, 300, 100)
+    è_hover = bottone_riavvio.collidepoint(pos_mouse)
+    
+    if è_hover:
+        colore_bottone = (180, 40, 40)
+        colore_bordo = (255, 120, 120)
+    else:
+        colore_bottone = (120, 30, 30)
+        colore_bordo = (200, 80, 80)
+    
+    pygame.draw.rect(schermo, colore_bottone, bottone_riavvio, border_radius=15)
+    pygame.draw.rect(schermo, colore_bordo, bottone_riavvio, 4, border_radius=15)
+    
+    testo_icona = fonts['grande'].render("↻", True, (255, 255, 255))
+    rett_icona = testo_icona.get_rect(center=(bottone_riavvio.centerx, bottone_riavvio.centery - 15))
+    schermo.blit(testo_icona, rett_icona)
+    
+    testo_bottone = fonts['piccolo'].render("Nuova Partita", True, (255, 255, 200))
+    rett_testo_bottone = testo_bottone.get_rect(center=(bottone_riavvio.centerx, bottone_riavvio.centery + 25))
+    schermo.blit(testo_bottone, rett_testo_bottone)
+    
+    return bottone_riavvio
+
+
+def disegna_schermata_vincitore(schermo, fonts, lottatore_vincitore, num_round, diff):
+    """Disegna la schermata del vincitore"""
+    
+    # Overlay scuro
+    overlay = pygame.Surface((LARGHEZZA, ALTEZZA))
+    overlay.set_alpha(220)
+    overlay.fill((0, 0, 0))
+    schermo.blit(overlay, (0, 0))
+    
+    # Testo vincitore
+    if lottatore_vincitore:
+        testo_vincitore = fonts['titolo'].render(f"🏆 {lottatore_vincitore['nome']} VINCE! 🏆", 
+                                                 True, (255, 215, 0))
+        
+        # Disegna il vincitore al centro
+        lottatore_vincitore['x'] = LARGHEZZA // 2
+        lottatore_vincitore['y'] = ALTEZZA // 2 + 80
+        lottatore_disegna(schermo, lottatore_vincitore)
+    else:
+        testo_vincitore = fonts['titolo'].render("PAREGGIO!", True, (255, 255, 255))
+    
+    rett_vincitore = testo_vincitore.get_rect(center=(LARGHEZZA // 2, ALTEZZA // 3))
+    schermo.blit(testo_vincitore, rett_vincitore)
+    
+    # Statistiche
+    testo_rounds = fonts['medio'].render(f"Round giocati: {num_round}", True, (255, 255, 255))
+    rett_rounds = testo_rounds.get_rect(center=(LARGHEZZA // 2, ALTEZZA // 2 - 20))
+    schermo.blit(testo_rounds, rett_rounds)
+    
+    nome_diff = {"FACILE": "Facile", "MEDIO": "Medio", "DIFFICILE": "Difficile"}
+    testo_diff = fonts['medio'].render(f"Difficoltà: {nome_diff[diff]}", True, (200, 200, 200))
+    rett_diff = testo_diff.get_rect(center=(LARGHEZZA // 2, ALTEZZA // 2 + 20))
+    schermo.blit(testo_diff, rett_diff)
+    
+    # Istruzioni
+    testo_riavvio = fonts['piccolo'].render("Premi SPAZIO per giocare ancora", True, (200, 200, 200))
+    rett_riavvio = testo_riavvio.get_rect(center=(LARGHEZZA // 2, ALTEZZA - 100))
+    schermo.blit(testo_riavvio, rett_riavvio)
+
+
+# ==============================================================================
+# FUNZIONE PRINCIPALE - LOOP DEL GIOCO
+# ==============================================================================
+
+def main():
+    """Funzione principale che esegue il gioco"""
+    
+    # Variabili globali
+    global stato_gioco, difficolta, piattaforme, lottatori, colore_target
+    global conto_alla_rovescia, numero_round, vincitore, piattaforme_scomparse
+    
+    # Inizializza Pygame
+    pygame.init()
+    schermo = pygame.display.set_mode((LARGHEZZA, ALTEZZA))
+    pygame.display.set_caption("Sumo Color Survival")
+    orologio = pygame.time.Clock()
+    
+    # Crea i font
+    fonts = {
+        'titolo': pygame.font.Font(None, 70),
+        'grande': pygame.font.Font(None, 50),
+        'medio': pygame.font.Font(None, 36),
+        'piccolo': pygame.font.Font(None, 28),
+        'minuscolo': pygame.font.Font(None, 22)
+    }
+    
+    # Variabili per i bottoni del menu
+    bottoni_difficolta = {}
+    bottone_inizio = None
+    bottone_riavvio = None
+    
+    # Loop principale del gioco
+    in_esecuzione = True
+    while in_esecuzione:
+        
+        # Ottieni la posizione del mouse
+        pos_mouse = pygame.mouse.get_pos()
+        
+        # Gestisci eventi (chiusura, click, tasti)
+        for evento in pygame.event.get():
+            if evento.type == pygame.QUIT:
+                in_esecuzione = False
             
-            for wrestler in self.wrestlers:
-                if wrestler.alive:
-                    wrestler.update(
-                        keys if not wrestler.is_bot else None,
-                        mouse_buttons if not wrestler.is_bot else None,
-                        self.platforms,
-                        self.target_color,
-                        self.wrestlers
-                    )
+            elif evento.type == pygame.KEYDOWN:
+                # Tasto SPAZIO nella schermata vincitore
+                if evento.key == pygame.K_SPACE and stato_gioco == "VINCITORE":
+                    stato_gioco = "MENU"
             
-            if self.countdown <= 0:
-                for platform in self.platforms:
-                    if platform.color_name != self.target_color:
-                        platform.start_disappear()
+            elif evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
+                # Click sinistro
                 
-                self.platforms_disappeared = True
+                if stato_gioco == "MENU":
+                    # Click sui bottoni difficoltà
+                    for valore_diff, rett_bottone in bottoni_difficolta.items():
+                        if rett_bottone.collidepoint(pos_mouse):
+                            difficolta = valore_diff
+                    
+                    # Click sul bottone INIZIO
+                    if bottone_inizio and bottone_inizio.collidepoint(pos_mouse):
+                        # Inizia il gioco!
+                        piattaforme = crea_tutte_piattaforme()
+                        lottatori = crea_tutti_lottatori(difficolta)
+                        numero_round = 1
+                        vincitore = None
+                        piattaforme_scomparse = False
+                        
+                        # Inizia il primo round
+                        stato_gioco = "GIOCANDO"
+                        conto_alla_rovescia = 3.0
+                        colore_target = random.choice(NOMI_COLORI)
+                        
+                        for piattaforma in piattaforme:
+                            piattaforma['attiva'] = True
+                            piattaforma['progresso_scomparsa'] = 0
+                        
+                        for lottatore in lottatori:
+                            if lottatore['è_bot']:
+                                lottatore['timer_ai'] = 0
+                                lottatore['piattaforma_target'] = None
                 
-                for wrestler in self.wrestlers:
-                    if wrestler.alive:
-                        on_correct_platform = False
-                        for platform in self.platforms:
-                            if (platform.color_name == self.target_color and 
-                                platform.active and 
-                                platform.contains_point(wrestler.x, wrestler.y)):
-                                on_correct_platform = True
+                elif stato_gioco in ["GIOCANDO", "ATTESA"]:
+                    # Click sul bottone RIAVVIO
+                    if bottone_riavvio and bottone_riavvio.collidepoint(pos_mouse):
+                        stato_gioco = "MENU"
+        
+        # ==============================================================
+        # AGGIORNA LO STATO DEL GIOCO
+        # ==============================================================
+        
+        if stato_gioco == "GIOCANDO":
+            # Aggiorna countdown
+            conto_alla_rovescia -= 1/60
+            
+            # Ottieni input da tastiera e mouse
+            tasti = pygame.key.get_pressed()
+            pulsanti_mouse = pygame.mouse.get_pressed()
+            
+            # Aggiorna tutti i giocatori
+            for lottatore in lottatori:
+                if lottatore['vivo']:
+                    lottatore_aggiorna(lottatore, tasti, pulsanti_mouse, piattaforme, colore_target, lottatori)
+            
+            # Quando il countdown finisce
+            if conto_alla_rovescia <= 0:
+                # Fa scomparire le piattaforme sbagliate
+                for piattaforma in piattaforme:
+                    if piattaforma['nome_colore'] != colore_target:
+                        piattaforma_inizia_scomparsa(piattaforma)
+                
+                piattaforme_scomparse = True
+                
+                # Controlla chi è su piattaforme sbagliate
+                for lottatore in lottatori:
+                    if lottatore['vivo']:
+                        su_corretta = False
+                        for piattaforma in piattaforme:
+                            if (piattaforma['nome_colore'] == colore_target and 
+                                piattaforma['attiva'] and 
+                                piattaforma_contiene_punto(piattaforma, lottatore['x'], lottatore['y'])):
+                                su_corretta = True
                                 break
                         
-                        if not on_correct_platform:
-                            wrestler.alive = False
+                        if not su_corretta:
+                            lottatore['vivo'] = False
                 
-                self.state = GameState.WAITING
-                self.countdown = 2.0
+                stato_gioco = "ATTESA"
+                conto_alla_rovescia = 2.0
             
-            for platform in self.platforms:
-                platform.update()
+            # Aggiorna animazione piattaforme
+            for piattaforma in piattaforme:
+                piattaforma_aggiorna(piattaforma)
         
-        elif self.state == GameState.WAITING:
-            self.countdown -= 1/60
+        elif stato_gioco == "ATTESA":
+            # Aggiorna countdown
+            conto_alla_rovescia -= 1/60
             
-            keys = pygame.key.get_pressed()
-            mouse_buttons = pygame.mouse.get_pressed()
+            # Ottieni input
+            tasti = pygame.key.get_pressed()
+            pulsanti_mouse = pygame.mouse.get_pressed()
             
-            for wrestler in self.wrestlers:
-                wrestler.update(
-                    keys if not wrestler.is_bot else None,
-                    mouse_buttons if not wrestler.is_bot else None,
-                    self.platforms,
-                    self.target_color,
-                    self.wrestlers
-                )
+            # Aggiorna giocatori
+            for lottatore in lottatori:
+                lottatore_aggiorna(lottatore, tasti, pulsanti_mouse, piattaforme, colore_target, lottatori)
             
-            if self.platforms_disappeared:
-                for wrestler in self.wrestlers:
-                    if wrestler.alive:
-                        if not wrestler.check_on_platform(self.platforms, self.target_color):
-                            wrestler.alive = False
+            # Controlla se qualcuno cade dalle piattaforme
+            if piattaforme_scomparse:
+                for lottatore in lottatori:
+                    if lottatore['vivo']:
+                        if not lottatore_controlla_su_piattaforma(lottatore, piattaforme, colore_target):
+                            lottatore['vivo'] = False
             
-            for platform in self.platforms:
-                platform.update()
+            # Aggiorna piattaforme
+            for piattaforma in piattaforme:
+                piattaforma_aggiorna(piattaforma)
             
-            if self.countdown <= 0:
-                alive_wrestlers = [w for w in self.wrestlers if w.alive]
+            # Quando il countdown finisce
+            if conto_alla_rovescia <= 0:
+                # Conta i sopravvissuti
+                lottatori_vivi = [l for l in lottatori if l['vivo']]
                 
-                if len(alive_wrestlers) == 1:
-                    self.winner = alive_wrestlers[0]
-                    self.state = GameState.WINNER
-                elif len(alive_wrestlers) == 0:
-                    self.state = GameState.WINNER
+                if len(lottatori_vivi) == 1:
+                    # Abbiamo un vincitore!
+                    vincitore = lottatori_vivi[0]
+                    stato_gioco = "VINCITORE"
+                
+                elif len(lottatori_vivi) == 0:
+                    # Pareggio
+                    vincitore = None
+                    stato_gioco = "VINCITORE"
+                
                 else:
-                    self.round_number += 1
-                    self.create_platforms()
-                    self.respawn_alive_wrestlers()
-                    self.start_round()
-    
-    def respawn_alive_wrestlers(self):
-        """Respawn dei giocatori vivi al centro della scacchiera"""
-        alive = [w for w in self.wrestlers if w.alive]
-        num_alive = len(alive)
-        
-        if num_alive == 0:
-            return
-        
-        grid_center_x = WIDTH // 2
-        grid_center_y = HEIGHT // 2 + 30
-        spawn_radius = 80
-        
-        for i, wrestler in enumerate(alive):
-            angle = (2 * math.pi / num_alive) * i
-            wrestler.spawn_x = grid_center_x + math.cos(angle) * spawn_radius
-            wrestler.spawn_y = grid_center_y + math.sin(angle) * spawn_radius
-            wrestler.reset_position()
-    
-    def is_player_alive(self):
-        """Controlla se il giocatore umano è vivo"""
-        for wrestler in self.wrestlers:
-            if not wrestler.is_bot:
-                return wrestler.alive
-        return False
-    
-    def draw(self):
-        """Disegna tutto sullo schermo"""
-        self.screen.fill((30, 30, 40))
-        
-        if self.state == GameState.MENU:
-            self.draw_menu()
-        elif self.state in [GameState.PLAYING, GameState.WAITING]:
-            self.draw_game()
-            # BOTTONE RESTART SEMPRE VISIBILE DURANTE IL GIOCO
-            self.draw_restart_button()
-        elif self.state == GameState.WINNER:
-            self.draw_winner()
-        
-        pygame.display.flip()
-    
-    def draw_restart_button(self):
-        """Disegna il bottone restart sempre visibile durante il gioco"""
-        mouse_pos = pygame.mouse.get_pos()
-        is_hovered = self.restart_button.collidepoint(mouse_pos)
-        
-        # Colore basato su hover
-        if is_hovered:
-            button_color = (180, 40, 40)
-            border_color = (255, 120, 120)
-        else:
-            button_color = (120, 30, 30)
-            border_color = (200, 80, 80)
-        
-        # Disegna bottone
-        pygame.draw.rect(self.screen, button_color, self.restart_button, border_radius=15)
-        pygame.draw.rect(self.screen, border_color, self.restart_button, 4, border_radius=15)
-        
-        # Icona e testo
-        icon_text = self.big_font.render("↻", True, (255, 255, 255))
-        icon_rect = icon_text.get_rect(center=(self.restart_button.centerx, self.restart_button.centery - 15))
-        self.screen.blit(icon_text, icon_rect)
-        
-        button_text = self.small_font.render("Nuova Partita", True, (255, 255, 200))
-        button_text_rect = button_text.get_rect(center=(self.restart_button.centerx, self.restart_button.centery + 25))
-        self.screen.blit(button_text, button_text_rect)
-    
-    def draw_menu(self):
-        """Disegna il menu iniziale con layout migliorato"""
-        # Sfondo gradiente
-        for i in range(HEIGHT):
-            color_val = 30 + int(i / HEIGHT * 20)
-            pygame.draw.line(self.screen, (color_val, color_val, color_val + 10), (0, i), (WIDTH, i))
-        
-        # Titolo principale con ombra
-        shadow_offset = 4
-        title_shadow = self.title_font.render("SUMO COLOR SURVIVAL", True, (0, 0, 0))
-        title_shadow_rect = title_shadow.get_rect(center=(WIDTH // 2 + shadow_offset, 120 + shadow_offset))
-        self.screen.blit(title_shadow, title_shadow_rect)
-        
-        title = self.title_font.render("SUMO COLOR SURVIVAL", True, (255, 215, 0))
-        title_rect = title.get_rect(center=(WIDTH // 2, 120))
-        self.screen.blit(title, title_rect)
-        
-        # Sottotitolo
-        subtitle = self.medium_font.render("⚔️ 8 Giocatori - Battaglia Finale ⚔️", True, (255, 255, 150))
-        subtitle_rect = subtitle.get_rect(center=(WIDTH // 2, 200))
-        self.screen.blit(subtitle, subtitle_rect)
-        
-        # Separatore decorativo
-        pygame.draw.line(self.screen, (100, 100, 120), (WIDTH // 2 - 300, 240), (WIDTH // 2 + 300, 240), 2)
-        
-        # Etichetta difficoltà con box
-        diff_box = pygame.Rect(WIDTH // 2 - 250, 265, 500, 50)
-        pygame.draw.rect(self.screen, (50, 50, 60), diff_box, border_radius=10)
-        pygame.draw.rect(self.screen, (100, 100, 120), diff_box, 2, border_radius=10)
-        
-        diff_label = self.medium_font.render("⚙️ SELEZIONA DIFFICOLTÀ", True, (255, 255, 100))
-        diff_label_rect = diff_label.get_rect(center=(WIDTH // 2, 290))
-        self.screen.blit(diff_label, diff_label_rect)
-        
-        # Bottoni difficoltà con hover migliorato
-        mouse_pos = pygame.mouse.get_pos()
-        
-        difficulties = [
-            (Difficulty.EASY, "FACILE", (100, 255, 100), "Bot lenti e poco aggressivi"),
-            (Difficulty.MEDIUM, "MEDIO", (255, 200, 100), "Bot abili e tattici"),
-            (Difficulty.HARD, "DIFFICILE", (255, 100, 100), "Bot esperti e spietati")
-        ]
-        
-        for diff, text, color, description in difficulties:
-            button_rect = self.difficulty_buttons[diff]
-            is_selected = (self.difficulty == diff)
-            is_hovered = button_rect.collidepoint(mouse_pos)
-            
-            # Effetto glow per selezione
-            if is_selected:
-                glow_rect = button_rect.inflate(10, 10)
-                pygame.draw.rect(self.screen, color, glow_rect, border_radius=12)
-                button_color = color
-                text_color = (0, 0, 0)
-                border_width = 5
-            elif is_hovered:
-                button_color = (70, 70, 80)
-                text_color = color
-                border_width = 4
-            else:
-                button_color = (50, 50, 60)
-                text_color = (200, 200, 200)
-                border_width = 2
-            
-            pygame.draw.rect(self.screen, button_color, button_rect, border_radius=12)
-            pygame.draw.rect(self.screen, color, button_rect, border_width, border_radius=12)
-            
-            # Testo principale
-            button_text = self.medium_font.render(text, True, text_color)
-            button_text_rect = button_text.get_rect(center=(button_rect.centerx, button_rect.centery - 8))
-            self.screen.blit(button_text, button_text_rect)
-            
-            # Descrizione
-            desc_text = self.tiny_font.render(description, True, (180, 180, 180) if not is_selected else (50, 50, 50))
-            desc_rect = desc_text.get_rect(center=(button_rect.centerx, button_rect.centery + 18))
-            self.screen.blit(desc_text, desc_rect)
-        
-        # Bottone START con effetto
-        is_start_hovered = self.start_button.collidepoint(mouse_pos)
-        
-        if is_start_hovered:
-            # Glow effect
-            glow_rect = self.start_button.inflate(15, 15)
-            pygame.draw.rect(self.screen, (80, 220, 80), glow_rect, border_radius=15)
-        
-        start_color = (100, 220, 100) if is_start_hovered else (60, 160, 60)
-        pygame.draw.rect(self.screen, start_color, self.start_button, border_radius=15)
-        pygame.draw.rect(self.screen, (150, 255, 150), self.start_button, 5, border_radius=15)
-        
-        start_text = self.big_font.render("▶ INIZIA PARTITA", True, (255, 255, 255))
-        start_text_rect = start_text.get_rect(center=self.start_button.center)
-        self.screen.blit(start_text, start_text_rect)
-        
-        # Istruzioni in fondo con box
-        instructions_y = HEIGHT - 150
-        inst_box = pygame.Rect(WIDTH // 2 - 400, instructions_y - 10, 800, 140)
-        pygame.draw.rect(self.screen, (40, 40, 50), inst_box, border_radius=10)
-        pygame.draw.rect(self.screen, (80, 80, 100), inst_box, 2, border_radius=10)
-        
-        instructions = [
-            "🎮 Controlli:",
-            "WASD - Movimento  |  Click Sinistro - Attacco Pancia",
-            "",
-            "🎯 Obiettivo: Salta sul colore giusto e butta giù gli avversari!",
-            "⚠️ Non cadere dalle piattaforme quando scompaiono!"
-        ]
-        
-        for i, text in enumerate(instructions):
-            if i == 0:
-                surf = self.small_font.render(text, True, (255, 215, 0))
-            else:
-                surf = self.small_font.render(text, True, (200, 200, 200))
-            rect = surf.get_rect(center=(WIDTH // 2, instructions_y + 20 + i * 28))
-            self.screen.blit(surf, rect)
-    
-    def draw_game(self):
-        """Disegna il gioco in corso"""
-        # Disegna piattaforme
-        for platform in self.platforms:
-            platform.draw(self.screen)
-        
-        # Disegna lottatori
-        for wrestler in self.wrestlers:
-            wrestler.draw(self.screen)
-        
-        # HUD superiore
-        pygame.draw.rect(self.screen, (0, 0, 0, 180), (0, 0, WIDTH, 100))
-        
-        # Round number
-        round_text = self.medium_font.render(f"ROUND {self.round_number}", True, (255, 255, 255))
-        self.screen.blit(round_text, (20, 20))
-        
-        # Difficoltà
-        diff_names = {Difficulty.EASY: "FACILE", Difficulty.MEDIUM: "MEDIO", Difficulty.HARD: "DIFFICILE"}
-        diff_colors = {Difficulty.EASY: (100, 255, 100), Difficulty.MEDIUM: (255, 200, 100), Difficulty.HARD: (255, 100, 100)}
-        diff_text = self.small_font.render(diff_names[self.difficulty], True, diff_colors[self.difficulty])
-        self.screen.blit(diff_text, (20, 60))
-        
-        # Colore target
-        if self.state == GameState.PLAYING:
-            target_text = self.big_font.render(f"COLORE: {self.target_color}", True, COLORS[self.target_color])
-            target_rect = target_text.get_rect(center=(WIDTH // 2, 40))
-            
-            box_rect = target_rect.inflate(40, 20)
-            pygame.draw.rect(self.screen, COLORS[self.target_color], box_rect, 5, border_radius=10)
-            
-            self.screen.blit(target_text, target_rect)
-            
-            # Countdown
-            if self.countdown > 0:
-                countdown_text = self.big_font.render(f"{int(self.countdown) + 1}", True, (255, 200, 0))
-                countdown_rect = countdown_text.get_rect(center=(WIDTH // 2, 90))
-                self.screen.blit(countdown_text, countdown_rect)
-        
-        # Giocatori vivi
-        alive_count = sum(1 for w in self.wrestlers if w.alive)
-        alive_text = self.medium_font.render(f"Vivi: {alive_count}/8", True, (0, 255, 0))
-        self.screen.blit(alive_text, (WIDTH - 180, 20))
-        
-        # Lista giocatori vivi
-        y_offset = 60
-        for wrestler in self.wrestlers:
-            if wrestler.alive:
-                prefix = "👑 " if not wrestler.is_bot else "🤖 "
-                status_text = self.small_font.render(f"{prefix}{wrestler.name}", True, wrestler.body_color)
-                self.screen.blit(status_text, (WIDTH - 180, y_offset))
-                y_offset += 25
-    
-    def draw_winner(self):
-        """Disegna la schermata del vincitore"""
-        overlay = pygame.Surface((WIDTH, HEIGHT))
-        overlay.set_alpha(220)
-        overlay.fill((0, 0, 0))
-        self.screen.blit(overlay, (0, 0))
-        
-        # Testo vincitore
-        if self.winner:
-            winner_text = self.title_font.render(f"🏆 {self.winner.name} VINCE! 🏆", True, (255, 215, 0))
-            
-            # Disegna il vincitore al centro
-            self.winner.x = WIDTH // 2
-            self.winner.y = HEIGHT // 2 + 80
-            self.winner.draw(self.screen)
-        else:
-            winner_text = self.title_font.render("PAREGGIO!", True, (255, 255, 255))
-        
-        winner_rect = winner_text.get_rect(center=(WIDTH // 2, HEIGHT // 3))
-        self.screen.blit(winner_text, winner_rect)
-        
-        # Statistiche
-        rounds_text = self.medium_font.render(f"Round giocati: {self.round_number}", True, (255, 255, 255))
-        rounds_rect = rounds_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 20))
-        self.screen.blit(rounds_text, rounds_rect)
-        
-        diff_name = {Difficulty.EASY: "Facile", Difficulty.MEDIUM: "Medio", Difficulty.HARD: "Difficile"}
-        diff_text = self.medium_font.render(f"Difficoltà: {diff_name[self.difficulty]}", True, (200, 200, 200))
-        diff_rect = diff_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 + 20))
-        self.screen.blit(diff_text, diff_rect)
-        
-        # Istruzioni
-        restart_text = self.small_font.render("Premi SPAZIO per giocare ancora", True, (200, 200, 200))
-        restart_rect = restart_text.get_rect(center=(WIDTH // 2, HEIGHT - 100))
-        self.screen.blit(restart_text, restart_rect)
-    
-    def handle_event(self, event):
-        """Gestisce gli eventi"""
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_SPACE:
-                if self.state == GameState.WINNER:
-                    self.state = GameState.MENU
-        
-        elif event.type == pygame.MOUSEBUTTONDOWN:
-            if event.button == 1:
-                mouse_pos = pygame.mouse.get_pos()
-                
-                if self.state == GameState.MENU:
-                    # Click su difficoltà
-                    for diff, button_rect in self.difficulty_buttons.items():
-                        if button_rect.collidepoint(mouse_pos):
-                            self.difficulty = diff
+                    # Continua con un nuovo round
+                    numero_round += 1
+                    piattaforme = crea_tutte_piattaforme()
                     
-                    # Click su START
-                    if self.start_button.collidepoint(mouse_pos):
-                        self.setup_game()
-                        self.start_round()
-                
-                # Click su RESTART durante il gioco
-                elif self.state in [GameState.PLAYING, GameState.WAITING]:
-                    if self.restart_button.collidepoint(mouse_pos):
-                        self.state = GameState.MENU
-    
-    def run(self):
-        """Loop principale del gioco"""
-        running = True
+                    # Respawn dei giocatori vivi al centro
+                    num_vivi = len(lottatori_vivi)
+                    centro_griglia_x = LARGHEZZA // 2
+                    centro_griglia_y = ALTEZZA // 2 + 30
+                    raggio_spawn = 100
+                    
+                    for i, lottatore in enumerate(lottatori_vivi):
+                        angolo = (2 * math.pi / num_vivi) * i
+                        lottatore['spawn_x'] = centro_griglia_x + math.cos(angolo) * raggio_spawn
+                        lottatore['spawn_y'] = centro_griglia_y + math.sin(angolo) * raggio_spawn
+                        lottatore_resetta_posizione(lottatore)
+                    
+                    # Inizia nuovo round
+                    stato_gioco = "GIOCANDO"
+                    conto_alla_rovescia = 3.0
+                    piattaforme_scomparse = False
+                    colore_target = random.choice(NOMI_COLORI)
+                    
+                    for lottatore in lottatori:
+                        if lottatore['è_bot']:
+                            lottatore['timer_ai'] = 0
+                            lottatore['piattaforma_target'] = None
         
-        while running:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    running = False
-                else:
-                    self.handle_event(event)
+        # ==============================================================
+        # DISEGNA TUTTO SULLO SCHERMO
+        # ==============================================================
+        
+        # Sfondo nero/grigio scuro
+        schermo.fill((25, 25, 30))
+        
+        if stato_gioco == "MENU":
+            # Disegna il menu
+            bottoni_difficolta, bottone_inizio = disegna_menu(schermo, fonts, pos_mouse)
+        
+        elif stato_gioco in ["GIOCANDO", "ATTESA"]:
+            # Disegna il gioco
             
-            self.update()
-            self.draw()
-            self.clock.tick(FPS)
+            # Disegna piattaforme
+            for piattaforma in piattaforme:
+                piattaforma_disegna(schermo, piattaforma)
+            
+            # Disegna giocatori
+            for lottatore in lottatori:
+                lottatore_disegna(schermo, lottatore)
+            
+            # Disegna HUD
+            disegna_hud_gioco(schermo, fonts, numero_round, difficolta, colore_target, 
+                           stato_gioco, conto_alla_rovescia, lottatori)
+            
+            # Disegna bottone riavvio
+            bottone_riavvio = disegna_bottone_riavvio(schermo, fonts, pos_mouse)
         
-        pygame.quit()
+        elif stato_gioco == "VINCITORE":
+            # Disegna schermata vincitore
+            disegna_schermata_vincitore(schermo, fonts, vincitore, numero_round, difficolta)
+        
+        # Aggiorna lo schermo
+        pygame.display.flip()
+        
+        # Limita a 60 FPS
+        orologio.tick(FPS)
+    
+    # Chiudi Pygame
+    pygame.quit()
 
 
+# Esegui il gioco!
 if __name__ == "__main__":
-    game = Game()
-    game.run()
-
+    main()
