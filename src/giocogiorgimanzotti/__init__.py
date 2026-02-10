@@ -6,8 +6,8 @@ import random
 # COSTANTI DEL GIOCO - Valori che non cambiano mai
 # ==============================================================================
 
-LARGHEZZA = 1400  # Larghezza finestra
-ALTEZZA = 800     # Altezza finestra
+LARGHEZZA = 1920  # Larghezza finestra
+ALTEZZA = 1080     # Altezza finestra
 FPS = 60          # Frame per secondo
 
 # Colori delle piattaforme (Rosso, Bianco, Giallo, Blu, Arancione, Verde)
