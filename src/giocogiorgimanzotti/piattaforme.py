@@ -1,41 +1,78 @@
+
+
+
 def crea_piattaforma(x, y, larghezza, altezza, nome_colore):
     """
-    Crea una piattaforma colorata.
-    Restituisce un dizionario con tutte le informazioni della piattaforma.
+    Crea una singola piattaforma.
+    
+    Parametri:
+        x, y: posizione della piattaforma sullo schermo
+        larghezza, altezza: dimensioni della piattaforma
+        nome_colore: uno dei colori in NOMI_COLORI
+    
+    Restituisce:
+        Un dizionario con tutte le informazioni della piattaforma
     """
-    return {
-        'x': x,
-        'y': y,
-        'larghezza': larghezza,
-        'altezza': altezza,
-        'nome_colore': nome_colore,
-        'colore': COLORI[nome_colore],
-        'attiva': True,  # Se la piattaforma è visibile/utilizzabile
-        'progresso_scomparsa': 0  # 0 = visibile, 1 = completamente scomparsa
+   
+    piattaforma = {
+        'x': x,                              # Posizione orizzontale
+        'y': y,                              # Posizione verticale  
+        'larghezza': larghezza,              # Larghezza in pixel
+        'altezza': altezza,                  # Altezza in pixel
+        'nome_colore': nome_colore,          # Nome del colore (es: "ROSSO")
+        'colore': COLORI[nome_colore],       # Colore RGB (es: (255, 0, 0))
+        'attiva': True,                      # Se True, la piattaforma è visibile
+        'progresso_scomparsa': 0             # Da 0 (visibile) a 1 (scomparsa)
     }
+    
+    return piattaforma  
 
 
 def piattaforma_inizia_scomparsa(piattaforma):
-    """Fa iniziare l'animazione di scomparsa di una piattaforma"""
-    piattaforma['attiva'] = False
+    """
+    Fa iniziare l'animazione di scomparsa di una piattaforma.
+    La piattaforma diventerà gradualmente più piccola fino a sparire.
+    
+    Parametri:
+        piattaforma: il dizionario della piattaforma da far scomparire
+    """
+    piattaforma['attiva'] = False  
 
 
 def piattaforma_aggiorna(piattaforma):
-    """Aggiorna l'animazione di scomparsa di una piattaforma"""
+    """
+    Aggiorna lo stato della piattaforma (animazione di scomparsa).
+    Questa funzione viene chiamata 60 volte al secondo (per ogni frame).
+    
+    Parametri:
+        piattaforma: il dizionario della piattaforma da aggiornare
+    """
+   
     if not piattaforma['attiva'] and piattaforma['progresso_scomparsa'] < 1:
-        piattaforma['progresso_scomparsa'] += 0.05
+        
+        piattaforma['progresso_scomparsa'] += 0.07
 
 
 def piattaforma_disegna(schermo, piattaforma):
-    """Disegna una piattaforma sullo schermo"""
-    if piattaforma['progresso_scomparsa'] >= 1:
-        return  # Non disegnare se completamente scomparsa
+    """
+    Disegna una piattaforma sullo schermo.
     
+    Parametri:
+        schermo: la superficie pygame su cui disegnare
+        piattaforma: il dizionario della piattaforma da disegnare
+    """
+   
+    if piattaforma['progresso_scomparsa'] >= 1:
+        return
+    
+   
     if not piattaforma['attiva']:
-        # Animazione di scomparsa: la piattaforma diventa più piccola
+        
         scala = 1 - piattaforma['progresso_scomparsa']
+        
         offset = piattaforma['progresso_scomparsa'] * 20
         
+       
         rett = pygame.Rect(
             piattaforma['x'] + offset,
             piattaforma['y'] + offset,
@@ -43,74 +80,104 @@ def piattaforma_disegna(schermo, piattaforma):
             piattaforma['altezza'] * scala
         )
     else:
-        # Piattaforma normale
-        rett = pygame.Rect(piattaforma['x'], piattaforma['y'], 
-                          piattaforma['larghezza'], piattaforma['altezza'])
+      
+        rett = pygame.Rect(
+            piattaforma['x'], 
+            piattaforma['y'], 
+            piattaforma['larghezza'], 
+            piattaforma['altezza']
+        )
     
-    # Disegna il rettangolo colorato
+   
     pygame.draw.rect(schermo, piattaforma['colore'], rett)
-    # Disegna il bordo nero
+   
     pygame.draw.rect(schermo, (0, 0, 0), rett, 4)
 
 
 def piattaforma_contiene_punto(piattaforma, x, y, margine=15):
     """
     Controlla se un punto (x, y) è dentro o vicino alla piattaforma.
-    Il margine permette di camminare tra piattaforme adiacenti senza cadere.
+    Il margine permette di camminare tra piattaforme adiacenti senza cadere!
+    
+    Parametri:
+        piattaforma: la piattaforma da controllare
+        x, y: coordinate del punto da controllare
+        margine: spazio extra intorno alla piattaforma (default 15 pixel)
+    
+    Restituisce:
+        True se il punto è dentro/vicino, False altrimenti
+    
+    ✏️ MODIFICABILE: Cambia 'margine=15' per rendere più facile/difficile
     """
+    
     if not piattaforma['attiva'] or piattaforma['progresso_scomparsa'] >= 1:
         return False
     
-    # Espandi l'area di controllo con il margine
-    return (piattaforma['x'] - margine <= x <= piattaforma['x'] + piattaforma['larghezza'] + margine and 
-            piattaforma['y'] - margine <= y <= piattaforma['y'] + piattaforma['altezza'] + margine)
+    
+    dentro_x = piattaforma['x'] - margine <= x <= piattaforma['x'] + piattaforma['larghezza'] + margine
+    dentro_y = piattaforma['y'] - margine <= y <= piattaforma['y'] + piattaforma['altezza'] + margine
+    
+    return dentro_x and dentro_y
 
 
 def piattaforma_ottieni_centro(piattaforma):
-    """Restituisce il centro della piattaforma come tupla (x, y)"""
-    centro_x = piattaforma['x'] + piattaforma['larghezza'] // 2
+    """
+    Calcola e restituisce il centro della piattaforma.
+    Utile per far muovere i bot verso il centro delle piattaforme.
+    
+    Parametri:
+        piattaforma: la piattaforma di cui vogliamo il centro
+    
+    Restituisce:
+        Una tupla (centro_x, centro_y) con le coordinate del centro
+    """
+    centro_x = piattaforma['x'] + piattaforma['larghezza'] // 2  # // = divisione intera
     centro_y = piattaforma['y'] + piattaforma['altezza'] // 2
     return (centro_x, centro_y)
 
 
 def crea_tutte_piattaforme():
     """
-    Crea tutte le piattaforme del gioco.
-    Restituisce una lista di piattaforme (dizionari).
+    Crea TUTTE le piattaforme del gioco disposte a griglia.
+    Assegna 5 piattaforme per ogni colore (totale 30 piattaforme).
+    
+    Restituisce:
+        Una lista con tutti i dizionari delle piattaforme
     """
-    lista_piattaforme = []
+    lista_piattaforme = []  
     
-    # Configurazione griglia
-    righe = 6
-    colonne = 5
-    larghezza_piattaforma = 140
-    altezza_piattaforma = 110
-    spaziatura = 10  # Spazio tra piattaforme (camminabile con il margine)
+   
+    righe = 6               
+    colonne = 5             
+    larghezza_piattaforma = 140   
+    altezza_piattaforma = 110    
+    spaziatura = 10         
     
-    # Calcola dove posizionare la griglia per centrarla
+
     larghezza_griglia = colonne * larghezza_piattaforma + (colonne - 1) * spaziatura
     altezza_griglia = righe * altezza_piattaforma + (righe - 1) * spaziatura
-    offset_x = (LARGHEZZA - larghezza_griglia) // 2
-    offset_y = (ALTEZZA - altezza_griglia) // 2 + 30
+    offset_x = (LARGHEZZA - larghezza_griglia) // 2  
+    offset_y = (ALTEZZA - altezza_griglia) // 2 + 30  
     
-    # Crea lista di colori: esattamente 5 di ogni colore
     lista_colori = []
     for nome_colore in NOMI_COLORI:
-        lista_colori.extend([nome_colore] * 5)  # Aggiunge 5 volte ogni colore
+
+        lista_colori.extend([nome_colore] * 5)
     
-    # Mescola i colori casualmente
     random.shuffle(lista_colori)
-    
-    # Crea le piattaforme
-    idx = 0
+
+    idx = 0  
     for riga in range(righe):
         for col in range(colonne):
+           
             x = offset_x + col * (larghezza_piattaforma + spaziatura)
             y = offset_y + riga * (altezza_piattaforma + spaziatura)
-            
+         
             nome_colore = lista_colori[idx]
+            
             piattaforma = crea_piattaforma(x, y, larghezza_piattaforma, altezza_piattaforma, nome_colore)
             lista_piattaforme.append(piattaforma)
+            
             idx += 1
     
     return lista_piattaforme

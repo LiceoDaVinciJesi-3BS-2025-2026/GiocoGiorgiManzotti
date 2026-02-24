@@ -1,39 +1,50 @@
+import pygame  
+import math    
+import random
+
+
 def disegna_pannello(schermo, rett, titolo, font):
-    """Disegna un pannello bianco moderno con titolo"""
-    
-    # Ombra
+    """
+    Disegna un pannello bianco moderno con ombra e titolo.
+    Usato nel menu principale.
+    """
     rett_ombra = rett.copy()
     rett_ombra.x += 5
     rett_ombra.y += 5
     pygame.draw.rect(schermo, (10, 10, 15), rett_ombra, border_radius=15)
     
-    # Pannello principale bianco
     pygame.draw.rect(schermo, (240, 240, 245), rett, border_radius=15)
     pygame.draw.rect(schermo, (200, 200, 210), rett, 3, border_radius=15)
     
-    # Header (parte superiore del pannello)
     rett_header = pygame.Rect(rett.x, rett.y, rett.width, 50)
     pygame.draw.rect(schermo, (220, 220, 230), rett_header, 
                     border_top_left_radius=15, border_top_right_radius=15)
-    
-    # Titolo
+
     testo_titolo = font.render(titolo, True, (50, 50, 50))
     rett_titolo = testo_titolo.get_rect(center=(rett.centerx, rett.y + 25))
     schermo.blit(testo_titolo, rett_titolo)
 
 
 def disegna_menu(schermo, fonts, pos_mouse):
-    """Disegna il menu principale"""
+    """
+    Disegna il menu principale con 3 pannelli:
+    1. Difficoltà
+    2. Controlli
+    3. Pulsante Inizia
     
-    # Titolo
+    Restituisce: (bottoni_difficolta, bottone_inizio)
+    """
+    LARGHEZZA = 1400
     titolo = fonts['titolo'].render("SUMO COLOR SURVIVAL", True, (255, 255, 255))
     rett_titolo = titolo.get_rect(center=(LARGHEZZA // 2, 120))
     schermo.blit(titolo, rett_titolo)
     
-    # Posizioni dei 3 pannelli
+    ALTEZZA=800
+
     larghezza_pannello = 380
     altezza_pannello = 280
     spaziatura_pannello = 50
+
     larghezza_totale = larghezza_pannello * 3 + spaziatura_pannello * 2
     inizio_x = (LARGHEZZA - larghezza_totale) // 2
     centro_y = ALTEZZA // 2
@@ -49,11 +60,10 @@ def disegna_menu(schermo, fonts, pos_mouse):
                             larghezza_pannello, altezza_pannello)
     }
     
-    # PANNELLO 1: DIFFICOLTÀ
+
     pannello = rett_pannelli['difficolta']
     disegna_pannello(schermo, pannello, "DIFFICOLTÀ", fonts['medio'])
-    
-    # Bottoni difficoltà
+ 
     dati_diff = [
         ("FACILE", "FACILE", (100, 255, 100)),
         ("MEDIO", "MEDIO", (255, 200, 100)),
@@ -67,9 +77,12 @@ def disegna_menu(schermo, fonts, pos_mouse):
         bottone = pygame.Rect(pannello.centerx - 150, y_bottone + i * 60, 300, 50)
         bottoni_difficolta[valore_diff] = bottone
         
+        difficolta = "FACILE"
+     
         è_selezionato = (difficolta == valore_diff)
         è_hover = bottone.collidepoint(pos_mouse)
         
+
         if è_selezionato:
             pygame.draw.rect(schermo, colore_diff, bottone, border_radius=10)
             colore_testo = (0, 0, 0)
@@ -81,14 +94,16 @@ def disegna_menu(schermo, fonts, pos_mouse):
             pygame.draw.rect(schermo, (180, 180, 180), bottone, border_radius=10)
             colore_testo = (50, 50, 50)
         
+
         testo_btn = fonts['medio'].render(testo_diff, True, colore_testo)
         rett_testo_btn = testo_btn.get_rect(center=bottone.center)
         schermo.blit(testo_btn, rett_testo_btn)
     
-    # PANNELLO 2: CONTROLLI
+
     pannello = rett_pannelli['controlli']
     disegna_pannello(schermo, pannello, "CONTROLLI", fonts['medio'])
     
+
     controlli = [
         "WASD - Movimento",
         "",
@@ -99,22 +114,22 @@ def disegna_menu(schermo, fonts, pos_mouse):
         "Colore giusto!"
     ]
     
+
     offset_y = pannello.y + 70
     for testo in controlli:
-        if testo:
+        if testo: 
             surf = fonts['piccolo'].render(testo, True, (50, 50, 50))
             rett = surf.get_rect(center=(pannello.centerx, offset_y))
             schermo.blit(surf, rett)
         offset_y += 28
     
-    # PANNELLO 3: INIZIO
+   
     pannello = rett_pannelli['inizio']
     disegna_pannello(schermo, pannello, "GIOCA", fonts['medio'])
-    
-    # Bottone INIZIO grande
+   
     bottone_inizio = pygame.Rect(pannello.centerx - 150, pannello.centery - 40, 300, 80)
     è_hover_inizio = bottone_inizio.collidepoint(pos_mouse)
-    
+ 
     if è_hover_inizio:
         pygame.draw.rect(schermo, (100, 220, 100), bottone_inizio, border_radius=15)
     else:
@@ -122,11 +137,12 @@ def disegna_menu(schermo, fonts, pos_mouse):
     
     pygame.draw.rect(schermo, (150, 255, 150), bottone_inizio, 4, border_radius=15)
     
+   
     testo_inizio = fonts['grande'].render("INIZIA", True, (255, 255, 255))
     rett_testo_inizio = testo_inizio.get_rect(center=bottone_inizio.center)
     schermo.blit(testo_inizio, rett_testo_inizio)
     
-    # Info sotto
+
     info = fonts['piccolo'].render("8 Giocatori - Sopravvivi!", True, (150, 150, 150))
     rett_info = info.get_rect(center=(LARGHEZZA // 2, ALTEZZA - 50))
     schermo.blit(info, rett_info)
@@ -135,12 +151,14 @@ def disegna_menu(schermo, fonts, pos_mouse):
 
 
 def disegna_hud_gioco(schermo, fonts, num_round, diff, col_target, stato, conta, lista_lottatori):
-    """Disegna l'HUD (interfaccia) durante il gioco"""
-    
-    # Barra superiore scura
+    """
+    Disegna l'HUD (interfaccia utente) durante il gioco.
+    Include: round, difficoltà, colore target, countdown, giocatori vivi, pannello attacco.
+    """
+  
     pygame.draw.rect(schermo, (0, 0, 0, 200), (0, 0, LARGHEZZA, 90))
     
-    # Round e difficoltà (sinistra)
+  
     testo_round = fonts['medio'].render(f"ROUND {num_round}", True, (255, 255, 255))
     schermo.blit(testo_round, (20, 15))
     
@@ -149,50 +167,50 @@ def disegna_hud_gioco(schermo, fonts, num_round, diff, col_target, stato, conta,
     testo_diff = fonts['piccolo'].render(nomi_diff[diff], True, colori_diff[diff])
     schermo.blit(testo_diff, (20, 55))
     
-    # Colore target (centro)
+
     if stato == "GIOCANDO":
+    
         testo_target = fonts['grande'].render(f"{col_target}", True, COLORI[col_target])
         rett_target = testo_target.get_rect(center=(LARGHEZZA // 2, 35))
         
+    
         rett_box = rett_target.inflate(40, 20)
         pygame.draw.rect(schermo, COLORI[col_target], rett_box, 5, border_radius=10)
         
         schermo.blit(testo_target, rett_target)
         
+   
         if conta > 0:
             testo_conta = fonts['grande'].render(f"{int(conta) + 1}", True, (255, 200, 0))
             rett_conta = testo_conta.get_rect(center=(LARGHEZZA // 2, 75))
             schermo.blit(testo_conta, rett_conta)
     
-    # Giocatori vivi (destra)
+  
     conteggio_vivi = sum(1 for l in lista_lottatori if l['vivo'])
     testo_vivi = fonts['medio'].render(f"Vivi: {conteggio_vivi}/8", True, (0, 255, 0))
     schermo.blit(testo_vivi, (LARGHEZZA - 150, 15))
     
-    # Pannello ricarica attacco (destra)
     giocatore = None
     for l in lista_lottatori:
         if not l['è_bot']:
             giocatore = l
             break
     
+
     if giocatore and giocatore['vivo']:
         x_pannello = LARGHEZZA - 300
         y_pannello = 120
         largh_pannello = 280
         alt_pannello = 140
         
-        # Pannello
         rett_pannello = pygame.Rect(x_pannello, y_pannello, largh_pannello, alt_pannello)
         pygame.draw.rect(schermo, (40, 40, 50), rett_pannello, border_radius=10)
         pygame.draw.rect(schermo, (100, 100, 120), rett_pannello, 3, border_radius=10)
         
-        # Titolo
         titolo = fonts['piccolo'].render("ATTACCO PANCIA", True, (255, 215, 0))
         rett_titolo = titolo.get_rect(center=(x_pannello + largh_pannello // 2, y_pannello + 25))
         schermo.blit(titolo, rett_titolo)
         
-        # Descrizione
         desc1 = fonts['piccolo'].render("Click Sinistro per colpire", True, (200, 200, 200))
         rett_desc1 = desc1.get_rect(center=(x_pannello + largh_pannello // 2, y_pannello + 55))
         schermo.blit(desc1, rett_desc1)
@@ -201,39 +219,40 @@ def disegna_hud_gioco(schermo, fonts, num_round, diff, col_target, stato, conta,
         rett_desc2 = desc2.get_rect(center=(x_pannello + largh_pannello // 2, y_pannello + 75))
         schermo.blit(desc2, rett_desc2)
         
-        # Barra ricarica
         largh_barra = 240
         alt_barra = 25
         x_barra = x_pannello + (largh_pannello - largh_barra) // 2
         y_barra = y_pannello + 100
         
-        # Sfondo barra
         pygame.draw.rect(schermo, (60, 60, 70), (x_barra, y_barra, largh_barra, alt_barra), border_radius=5)
         
         if giocatore['cooldown_attacco'] > 0:
-            # Ricarica in corso
+         
             progresso = 1 - (giocatore['cooldown_attacco'] / 60)
             largh_riempimento = int(largh_barra * progresso)
             pygame.draw.rect(schermo, (255, 200, 0), (x_barra, y_barra, largh_riempimento, alt_barra), border_radius=5)
             
-            # Percentuale
+           
             testo_percentuale = fonts['piccolo'].render(f"{int(progresso * 100)}%", True, (255, 255, 255))
             rett_percentuale = testo_percentuale.get_rect(center=(x_barra + largh_barra // 2, y_barra + alt_barra // 2))
             schermo.blit(testo_percentuale, rett_percentuale)
         else:
-            # Pronto!
+          
             pygame.draw.rect(schermo, (100, 255, 100), (x_barra, y_barra, largh_barra, alt_barra), border_radius=5)
             testo_pronto = fonts['piccolo'].render("PRONTO!", True, (0, 100, 0))
             rett_pronto = testo_pronto.get_rect(center=(x_barra + largh_barra // 2, y_barra + alt_barra // 2))
             schermo.blit(testo_pronto, rett_pronto)
         
-        # Bordo barra
         pygame.draw.rect(schermo, (150, 150, 160), (x_barra, y_barra, largh_barra, alt_barra), 2, border_radius=5)
 
 
 def disegna_bottone_riavvio(schermo, fonts, pos_mouse):
-    """Disegna il bottone per riavviare il gioco"""
+    """
+    Disegna il bottone "Nuova Partita" durante il gioco.
+    Posizionato in basso a sinistra.
     
+    Restituisce: il rett del bottone
+    """
     bottone_riavvio = pygame.Rect(40, ALTEZZA // 2 - 50, 300, 100)
     è_hover = bottone_riavvio.collidepoint(pos_mouse)
     
@@ -259,30 +278,29 @@ def disegna_bottone_riavvio(schermo, fonts, pos_mouse):
 
 
 def disegna_schermata_vincitore(schermo, fonts, lottatore_vincitore, num_round, diff):
-    """Disegna la schermata del vincitore"""
-    
-    # Overlay scuro
+    """
+    Disegna la schermata finale quando qualcuno vince.
+    """
     overlay = pygame.Surface((LARGHEZZA, ALTEZZA))
     overlay.set_alpha(220)
     overlay.fill((0, 0, 0))
     schermo.blit(overlay, (0, 0))
     
-    # Testo vincitore
     if lottatore_vincitore:
+    
         testo_vincitore = fonts['titolo'].render(f"🏆 {lottatore_vincitore['nome']} VINCE! 🏆", 
                                                  True, (255, 215, 0))
         
-        # Disegna il vincitore al centro
         lottatore_vincitore['x'] = LARGHEZZA // 2
         lottatore_vincitore['y'] = ALTEZZA // 2 + 80
         lottatore_disegna(schermo, lottatore_vincitore)
     else:
+       
         testo_vincitore = fonts['titolo'].render("PAREGGIO!", True, (255, 255, 255))
     
     rett_vincitore = testo_vincitore.get_rect(center=(LARGHEZZA // 2, ALTEZZA // 3))
     schermo.blit(testo_vincitore, rett_vincitore)
     
-    # Statistiche
     testo_rounds = fonts['medio'].render(f"Round giocati: {num_round}", True, (255, 255, 255))
     rett_rounds = testo_rounds.get_rect(center=(LARGHEZZA // 2, ALTEZZA // 2 - 20))
     schermo.blit(testo_rounds, rett_rounds)
@@ -292,7 +310,7 @@ def disegna_schermata_vincitore(schermo, fonts, lottatore_vincitore, num_round, 
     rett_diff = testo_diff.get_rect(center=(LARGHEZZA // 2, ALTEZZA // 2 + 20))
     schermo.blit(testo_diff, rett_diff)
     
-    # Istruzioni
     testo_riavvio = fonts['piccolo'].render("Premi SPAZIO per giocare ancora", True, (200, 200, 200))
     rett_riavvio = testo_riavvio.get_rect(center=(LARGHEZZA // 2, ALTEZZA - 100))
     schermo.blit(testo_riavvio, rett_riavvio)
+
