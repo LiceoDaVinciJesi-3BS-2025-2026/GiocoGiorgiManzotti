@@ -1,6 +1,15 @@
+import pygame  
+import math    
+import random
+
+from Costanti_e_variabili import *
+from Menu_e_interfaccia import *
+from Piattaforme import *
+from Lottatori import *
 
 
 def main():
+    pygame.init()
     """
     Funzione principale che esegue il gioco.
     
@@ -195,7 +204,7 @@ def main():
      
         if stato_gioco == "MENU":
            
-            bottoni_difficolta, bottone_inizio = disegna_menu(schermo, fonts, pos_mouse)
+            bottoni_difficolta, bottone_inizio = disegna_menu(schermo, fonts, pos_mouse, difficolta)
         
         elif stato_gioco in ["GIOCANDO", "ATTESA"]:
       

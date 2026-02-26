@@ -1,3 +1,7 @@
+import pygame  
+import math    
+import random
+
 
 LARGHEZZA = 1400  
 ALTEZZA = 800     

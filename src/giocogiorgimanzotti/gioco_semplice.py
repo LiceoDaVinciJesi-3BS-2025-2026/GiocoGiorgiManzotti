@@ -1108,11 +1108,7 @@ def disegna_bottone_riavvio(schermo, fonts, pos_mouse):
     schermo.blit(testo_icona, rett_icona)
     
     # Testo
-    testo_bottone = fonts['piccolo'].render("Nuova Partita", True, (255, 255, 200))
-    rett_testo_bottone = testo_bottone.get_rect(center=(bottone_riavvio.centerx, bottone_riavvio.centery + 25))
-    schermo.blit(testo_bottone, rett_testo_bottone)
     
-    return bottone_riavvio
 
 
 def disegna_schermata_vincitore(schermo, fonts, lottatore_vincitore, num_round, diff):

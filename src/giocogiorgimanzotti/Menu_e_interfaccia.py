@@ -2,6 +2,8 @@ import pygame
 import math    
 import random
 
+from Costanti_e_variabili import *
+from Lottatori import *
 
 def disegna_pannello(schermo, rett, titolo, font):
     """
@@ -25,7 +27,7 @@ def disegna_pannello(schermo, rett, titolo, font):
     schermo.blit(testo_titolo, rett_titolo)
 
 
-def disegna_menu(schermo, fonts, pos_mouse):
+def disegna_menu(schermo, fonts, pos_mouse, difficolta):
     """
     Disegna il menu principale con 3 pannelli:
     1. Difficoltà
@@ -77,7 +79,6 @@ def disegna_menu(schermo, fonts, pos_mouse):
         bottone = pygame.Rect(pannello.centerx - 150, y_bottone + i * 60, 300, 50)
         bottoni_difficolta[valore_diff] = bottone
         
-        difficolta = "FACILE"
      
         è_selezionato = (difficolta == valore_diff)
         è_hover = bottone.collidepoint(pos_mouse)
@@ -85,14 +86,14 @@ def disegna_menu(schermo, fonts, pos_mouse):
 
         if è_selezionato:
             pygame.draw.rect(schermo, colore_diff, bottone, border_radius=10)
-            colore_testo = (0, 0, 0)
+            colore_testo = (0,0,0)#100, 255, 100
         elif è_hover:
-            pygame.draw.rect(schermo, (200, 200, 200), bottone, border_radius=10)
+            pygame.draw.rect(schermo, (200, 200,200), bottone, border_radius=10)
             pygame.draw.rect(schermo, colore_diff, bottone, 3, border_radius=10)
-            colore_testo = (0, 0, 0)
+            colore_testo = (0,0, 0)#255, 200, 100
         else:
             pygame.draw.rect(schermo, (180, 180, 180), bottone, border_radius=10)
-            colore_testo = (50, 50, 50)
+            colore_testo = (0,0,0)#255, 100, 100
         
 
         testo_btn = fonts['medio'].render(testo_diff, True, colore_testo)
@@ -111,7 +112,7 @@ def disegna_menu(schermo, fonts, pos_mouse):
         "Attacco Pancia",
         "",
         "Obiettivo:",
-        "Colore giusto!"
+        "SOPRAVVIVERE"
     ]
     
 
@@ -156,7 +157,7 @@ def disegna_hud_gioco(schermo, fonts, num_round, diff, col_target, stato, conta,
     Include: round, difficoltà, colore target, countdown, giocatori vivi, pannello attacco.
     """
   
-    pygame.draw.rect(schermo, (0, 0, 0, 200), (0, 0, LARGHEZZA, 90))
+    pygame.draw.rect(schermo, (0, 0, 0, 100), (0, 0, LARGHEZZA, 80))
     
   
     testo_round = fonts['medio'].render(f"ROUND {num_round}", True, (255, 255, 255))
@@ -207,7 +208,7 @@ def disegna_hud_gioco(schermo, fonts, num_round, diff, col_target, stato, conta,
         pygame.draw.rect(schermo, (40, 40, 50), rett_pannello, border_radius=10)
         pygame.draw.rect(schermo, (100, 100, 120), rett_pannello, 3, border_radius=10)
         
-        titolo = fonts['piccolo'].render("ATTACCO PANCIA", True, (255, 215, 0))
+        titolo = fonts['piccolo'].render("PANZATA", True, (255, 215, 0))
         rett_titolo = titolo.get_rect(center=(x_pannello + largh_pannello // 2, y_pannello + 25))
         schermo.blit(titolo, rett_titolo)
         
@@ -215,9 +216,6 @@ def disegna_hud_gioco(schermo, fonts, num_round, diff, col_target, stato, conta,
         rett_desc1 = desc1.get_rect(center=(x_pannello + largh_pannello // 2, y_pannello + 55))
         schermo.blit(desc1, rett_desc1)
         
-        desc2 = fonts['piccolo'].render("Spinta: SUPER FORTE!", True, (255, 150, 150))
-        rett_desc2 = desc2.get_rect(center=(x_pannello + largh_pannello // 2, y_pannello + 75))
-        schermo.blit(desc2, rett_desc2)
         
         largh_barra = 240
         alt_barra = 25
@@ -253,7 +251,7 @@ def disegna_bottone_riavvio(schermo, fonts, pos_mouse):
     
     Restituisce: il rett del bottone
     """
-    bottone_riavvio = pygame.Rect(40, ALTEZZA // 2 - 50, 300, 100)
+    bottone_riavvio = pygame.Rect(40, ALTEZZA // 2 - 50, 200, 80)
     è_hover = bottone_riavvio.collidepoint(pos_mouse)
     
     if è_hover:
@@ -266,12 +264,12 @@ def disegna_bottone_riavvio(schermo, fonts, pos_mouse):
     pygame.draw.rect(schermo, colore_bottone, bottone_riavvio, border_radius=15)
     pygame.draw.rect(schermo, colore_bordo, bottone_riavvio, 4, border_radius=15)
     
-    testo_icona = fonts['grande'].render("↻", True, (255, 255, 255))
+    testo_icona = fonts['grande'].render(" ", True, (255, 255, 255))
     rett_icona = testo_icona.get_rect(center=(bottone_riavvio.centerx, bottone_riavvio.centery - 15))
     schermo.blit(testo_icona, rett_icona)
     
     testo_bottone = fonts['piccolo'].render("Nuova Partita", True, (255, 255, 200))
-    rett_testo_bottone = testo_bottone.get_rect(center=(bottone_riavvio.centerx, bottone_riavvio.centery + 25))
+    rett_testo_bottone = testo_bottone.get_rect(center=(bottone_riavvio.centerx, bottone_riavvio.centery))
     schermo.blit(testo_bottone, rett_testo_bottone)
     
     return bottone_riavvio
@@ -288,11 +286,11 @@ def disegna_schermata_vincitore(schermo, fonts, lottatore_vincitore, num_round, 
     
     if lottatore_vincitore:
     
-        testo_vincitore = fonts['titolo'].render(f"🏆 {lottatore_vincitore['nome']} VINCE! 🏆", 
+        testo_vincitore = fonts['titolo'].render(f" {lottatore_vincitore['nome']} HA VINTO! ", 
                                                  True, (255, 215, 0))
         
         lottatore_vincitore['x'] = LARGHEZZA // 2
-        lottatore_vincitore['y'] = ALTEZZA // 2 + 80
+        lottatore_vincitore['y'] = ALTEZZA // 2 + 150
         lottatore_disegna(schermo, lottatore_vincitore)
     else:
        

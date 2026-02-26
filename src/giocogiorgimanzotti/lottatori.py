@@ -1,3 +1,10 @@
+import pygame  
+import math    
+import random
+
+from Costanti_e_variabili import *
+from Piattaforme import *
+
 def crea_lottatore(x, y, colore_corpo, nome, è_bot, difficolta):
     """
     Crea un lottatore di sumo.
@@ -71,7 +78,7 @@ def ottieni_qualita_decisioni_ai(difficolta):
     ✏️ MODIFICABILE: Cambia questi numeri per bot più intelligenti o stupidi!
     """
     if difficolta == "FACILE":
-        return 0.6   # 60% delle volte sceglie la piattaforma migliore
+        return 0.7   # 60% delle volte sceglie la piattaforma migliore
     elif difficolta == "MEDIO":
         return 0.85  # 85% delle volte sceglie la piattaforma migliore
     else:  # DIFFICILE
@@ -142,7 +149,7 @@ def lottatore_aggiorna(lottatore, tasti, pulsanti_mouse, lista_piattaforme, nome
     velocita = math.sqrt(lottatore['velocita_x']**2 + lottatore['velocita_y']**2)
     
     # ✏️ MODIFICABILE: Velocità massima
-    velocita_massima = 4.0
+    velocita_massima = 6.5
     
     if velocita > velocita_massima:
         # Se va troppo veloce, riduci proporzionalmente
@@ -175,7 +182,7 @@ def lottatore_esegui_attacco(lottatore, tutti_lottatori):
     lottatore['cooldown_attacco'] = 60  # ✏️ Frame prima di poter riattaccare
     
 
-    raggio_attacco = 50   # Quanto lontano arriva l'attacco (in pixel)
+    raggio_attacco = 80   # Quanto lontano arriva l'attacco (in pixel)
     spinta_attacco = 250  # Quanto forte spinge (più alto = più forte!)
     
 
@@ -471,7 +478,7 @@ def crea_tutti_lottatori(livello_difficolta):
         spawn_y = centro_griglia_y + math.sin(angolo) * raggio_spawn
         
         if i == 0:
-            nome = "TU"
+            nome = "PLAYER"
             è_bot = False
         else:
             nome = f"BOT {i}"

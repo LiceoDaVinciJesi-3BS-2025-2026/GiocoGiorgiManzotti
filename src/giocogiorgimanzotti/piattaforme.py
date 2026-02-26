@@ -1,4 +1,8 @@
+import pygame  
+import math    
+import random
 
+from Costanti_e_variabili import *
 
 
 def crea_piattaforma(x, y, larghezza, altezza, nome_colore):
