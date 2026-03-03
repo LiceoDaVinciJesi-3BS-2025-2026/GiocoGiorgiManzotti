@@ -2,8 +2,8 @@ import pygame
 import math    
 import random
 
-from Costanti_e_variabili import *
-from Lottatori import *
+from costanti_e_variabili import *
+from lottatori import *
 
 def disegna_pannello(schermo, rett, titolo, font):
     """
@@ -86,14 +86,14 @@ def disegna_menu(schermo, fonts, pos_mouse, difficolta):
 
         if è_selezionato:
             pygame.draw.rect(schermo, colore_diff, bottone, border_radius=10)
-            colore_testo = (0,0,0)#100, 255, 100
+            colore_testo = (0,0,0)
         elif è_hover:
             pygame.draw.rect(schermo, (200, 200,200), bottone, border_radius=10)
             pygame.draw.rect(schermo, colore_diff, bottone, 3, border_radius=10)
-            colore_testo = (0,0, 0)#255, 200, 100
+            colore_testo = (0,0, 0)
         else:
             pygame.draw.rect(schermo, (180, 180, 180), bottone, border_radius=10)
-            colore_testo = (0,0,0)#255, 100, 100
+            colore_testo = (0,0,0)
         
 
         testo_btn = fonts['medio'].render(testo_diff, True, colore_testo)
