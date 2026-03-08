@@ -2,6 +2,7 @@ import pygame
 import math    
 import random
 
+
 from costanti_e_variabili import *
 from lottatori import *
 
