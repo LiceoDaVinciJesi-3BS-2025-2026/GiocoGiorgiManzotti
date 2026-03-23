@@ -10,7 +10,7 @@
 
  
 
-# ## 🎮 What is it?
+## 🎮 What is it?
 
  
 
@@ -34,7 +34,7 @@ Outlast all your opponents to win.
 
 | Key | Action |
 
-|---|---|
+---
 
 | `W A S D` | Move your fighter |
 
@@ -102,11 +102,6 @@ The game features **6 platform colors**, randomly shuffled each round:
 
 
 
-## 👥 Authors
-
-
----
-
 <hr>
 
 
@@ -114,6 +109,6 @@ The game features **6 platform colors**, randomly shuffled each round:
 
 The entire project was developed by Manzotti and Giorgi with the help of ‘claude.ai’; all the modules included are the result of their collaboration.
 
-
+---
 
 Made by Manzotti Leonardo and Giorgi Paolo.
