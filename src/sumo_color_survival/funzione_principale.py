@@ -3,12 +3,12 @@ import random
 
 import pygame
 
-from giocogiorgimanzotti.classifica import *
-from giocogiorgimanzotti.costanti_e_variabili import *
-from giocogiorgimanzotti.login import *
-from giocogiorgimanzotti.lottatori import *
-from giocogiorgimanzotti.menu_e_interfaccia import *
-from giocogiorgimanzotti.piattaforme import *
+from .classifica import *
+from .costanti_e_variabili import *
+from .login import *
+from .lottatori import *
+from .menu_e_interfaccia import *
+from .piattaforme import *
 
 
 def main():

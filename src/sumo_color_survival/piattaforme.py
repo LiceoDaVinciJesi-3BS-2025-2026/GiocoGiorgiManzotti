@@ -3,7 +3,7 @@ import random
 
 import pygame
 
-from giocogiorgimanzotti.costanti_e_variabili import *
+from sumo_color_survival.costanti_e_variabili import *
 
 
 def crea_piattaforma(x, y, larghezza, altezza, nome_colore):

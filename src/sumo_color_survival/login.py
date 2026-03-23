@@ -5,7 +5,10 @@ import math
 import random
 
 # File dove vengono salvati i dati degli utenti
-FILE_UTENTI = "utenti.json"
+from platformdirs import PlatformDirs
+
+_dirs = PlatformDirs("sumo_color_survival", ensure_exists=True)
+FILE_UTENTI = _dirs.user_data_path / "utenti.json"
 
 # Colori schermata login
 COLORI_LOGIN = {

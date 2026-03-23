@@ -5,7 +5,10 @@ import math
 import random
 
 # File dove viene salvata la classifica tra una sessione e l'altra
-FILE_CLASSIFICA = "classifica.json"
+from platformdirs import PlatformDirs
+
+_dirs = PlatformDirs("sumo_color_survival", ensure_exists=True)
+FILE_CLASSIFICA = _dirs.user_data_path / "classifica.json"
 
 
 # ==============================================================================

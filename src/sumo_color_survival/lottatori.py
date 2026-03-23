@@ -3,8 +3,8 @@ import random
 
 import pygame
 
-from giocogiorgimanzotti.costanti_e_variabili import *
-from giocogiorgimanzotti.piattaforme import *
+from .costanti_e_variabili import *
+from .piattaforme import *
 
 
 def crea_lottatore(x, y, colore_corpo, nome, è_bot, difficolta):

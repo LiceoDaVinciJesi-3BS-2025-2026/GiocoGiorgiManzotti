@@ -1,5 +1,5 @@
 [project]
-name = "giocogiorgimanzotti"
+name = "sumo_color_survival"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -12,8 +12,12 @@ dependencies = [
 ]
 
 [project.scripts]
-giocogiorgimanzotti = "giocogiorgimanzotti:main"
+sumo_color_survival = "sumo_color_survival:main"
 
 [build-system]
 requires = ["uv_build>=0.9.27,<0.10.0"]
 build-backend = "uv_build"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
