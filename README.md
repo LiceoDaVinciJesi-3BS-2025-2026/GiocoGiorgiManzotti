@@ -1,4 +1,4 @@
-# 🥊 Sumo Color Survival
+-# 🥊 Sumo Color Survival
 
  
 
@@ -96,9 +96,6 @@ The game features **6 platform colors**, randomly shuffled each round:
 
 🟥 Red · ⬜ White · 🟨 Yellow · 🟦 Blue · 🟧 Orange · 🟩 Green
 
- 
-
----
 
 
 
