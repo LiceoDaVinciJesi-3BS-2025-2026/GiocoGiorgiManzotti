@@ -1,3 +1,13 @@
+# _init_.py - file with importation.
+
+# Descrizione più lunga opzionale su più righe,
+# che spiega cosa fa il modulo.
+
+# Authors: 
+# Paolo Giorgi: paologiorgi04@gmail.com
+# Leonardo Manzotti: leomanzotti04@gmail.com
+
+
 import math
 import random
 
