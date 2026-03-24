@@ -3,12 +3,12 @@ import random
 
 import pygame
 
-from .classifica import *
-from .costanti_e_variabili import *
-from .login import *
-from .lottatori import *
-from .menu_e_interfaccia import *
-from .piattaforme import *
+from classifica import *
+from costanti_e_variabili import *
+from login import *
+from lottatori import *
+from menu_e_interfaccia import *
+from piattaforme import *
 
 
 def main():

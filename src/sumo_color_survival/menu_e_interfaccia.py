@@ -3,9 +3,9 @@ import random
 
 import pygame
 
-from .classifica import ottieni_classifica_ordinata
-from .costanti_e_variabili import *
-from .lottatori import *
+from classifica import ottieni_classifica_ordinata
+from costanti_e_variabili import *
+from lottatori import *
 
 
 def disegna_pannello(schermo, rett, titolo, font):
