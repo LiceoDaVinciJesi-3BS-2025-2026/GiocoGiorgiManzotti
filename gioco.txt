@@ -1,0 +1,27 @@
+<div class="w3-container w3-padding-large">
+<h2>SUMO COLOR SURVIVAL</h2>
+<div class="w3-row">
+<div class="w3-twothird">
+<p>
+# 🥊 Sumo Color Survival
+> *Jump, push, survive. But most importantly... stay on the right color.*
+---
+## 🎮 What is it?
+**Sumo Color Survival** is a frantic PC game where fighters clash on a grid of colored platforms.
+Each round the game announces a **target color**: anyone left on a platform of the wrong color... falls into the abyss!
+Outlast all your opponents to win.
+
+</p>
+
+<br>
+<button onclick="window.location.href='#';" class="w3-grey w3-padding">Scarica il gioco</button>
+<button onclick="window.location.href=https://github.com/LiceoDaVinciJesi-3BS-2025-2026/GiocoGiorgiManzotti;" class="w3-green w3-padding">LINK AL CODICE</button>
+<br>
+
+</div>
+
+<div class="w3-third">
+<img src=![sumo_color_survival](partita.PNG) class="w3-image">
+</div>
+</div>
+</div> <!-- container -->

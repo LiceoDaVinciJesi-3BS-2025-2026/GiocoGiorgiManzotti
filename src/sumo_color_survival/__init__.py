@@ -13,13 +13,13 @@ import random
 
 import pygame
 
-from classifica import *
-from costanti_e_variabili import *
-from funzione_principale import *
-from login import *
-from lottatori import *
-from menu_e_interfaccia import *
-from piattaforme import *
+from sumo_color_survival.classifica import *
+from sumo_color_survival.costanti_e_variabili import *
+from sumo_color_survival.funzione_principale import *
+from sumo_color_survival.login import *
+from sumo_color_survival.lottatori import *
+from sumo_color_survival.menu_e_interfaccia import *
+from sumo_color_survival.piattaforme import *
 
 if __name__ == "__main__":
     main()

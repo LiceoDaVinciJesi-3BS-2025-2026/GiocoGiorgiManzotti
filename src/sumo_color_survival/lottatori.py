@@ -13,8 +13,8 @@ import random
 
 import pygame
 
-from costanti_e_variabili import *
-from piattaforme import *
+from sumo_color_survival.costanti_e_variabili import *
+from sumo_color_survival.piattaforme import *
 
 
 def crea_lottatore(x, y, colore_corpo, nome, è_bot, difficolta):

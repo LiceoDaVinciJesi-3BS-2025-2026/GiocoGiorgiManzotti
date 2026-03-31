@@ -13,9 +13,9 @@ import random
 
 import pygame
 
-from classifica import ottieni_classifica_ordinata
-from costanti_e_variabili import *
-from lottatori import *
+from sumo_color_survival.classifica import ottieni_classifica_ordinata
+from sumo_color_survival.costanti_e_variabili import *
+from sumo_color_survival.lottatori import *
 
 
 def disegna_pannello(schermo, rett, titolo, font):
